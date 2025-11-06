@@ -1,7 +1,15 @@
-(ns app)
+(ns app
+  (:require ["https://esm.sh/reagami" :as reagami]))
+
+(def state (atom {:counter 0}))
+
+(defn app []
+  (let [{:keys [counter]} @state]
+    [:h1 "Counter: " counter]))
 
 (defn render []
-  (let [app-el (js/document.getElementById "app")]
-    (set! (.-innerHTML app-el) "<h1>Hello from Squint!</h1>")))
+  (reagami/render (js/document.getElementById "app") [app]))
+
+(add-watch state ::render (fn [_ _ _ _] (render)))
 
 (render)
