@@ -1,2 +1,4 @@
 node_modules
 target
+.clj-kondo/.cache/v1
+.lsp/.cache
