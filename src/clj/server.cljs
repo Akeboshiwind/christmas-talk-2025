@@ -1,14 +1,6 @@
-(ns server)
-
-(defn file [path content-type]
-  (js/Response. (.file js/Bun path) {:headers {"Content-Type" content-type}}))
-
-(defn sse [stream]
-  (js/Response.
-    stream
-    {:headers {"Content-Type" "text/event-stream"
-               "Cache-Control" "no-cache"
-               "Connection" "keep-alive"}}))
+(ns server
+  (:require ["node:http2" :as http2]
+            ["node:fs" :as fs]))
 
 (defn event [msg]
   (if (string? msg)
@@ -20,54 +12,81 @@
            (when retry (str "retry: " retry "\n"))
            "\n\n"))))
 
-(def counter (atom 0))
-
-(def clients (atom #{}))
-
-(defn broadcast [msg]
+(defn broadcast [clients msg]
   (let [e (event msg)]
-    (doseq [client @clients]
-      (.enqueue client e))))
+    (doseq [client clients]
+      (.write client e))))
 
-(defn events [req]
-  (let [_last-id (.. req -headers (get "last-event-id"))
-        client (atom nil)
-        keepalive (atom nil)]
-    (println "SSE connection requested, last-event-id:" _last-id)
-    (js/ReadableStream.
-      {:start (fn [controller]
-                (println "New SSE client connected")
-                (reset! client controller)
-                (swap! clients conj controller)
-                (.enqueue controller (event {:event "counter" :data @counter}))
-                (reset! keepalive
-                        (js/setInterval
-                           #(.enqueue controller (event {:event "ping"}))
-                           30000)))
-       :cancel #(do (println "SSE client disconnected")
-                    (swap! clients disj @client)
-                    (js/clearInterval @keepalive))})))
+(defn setup-sse [stream on-start on-close]
+  (.respond stream {":status" 200
+                    "content-type" "text/event-stream"
+                    "cache-control" "no-cache"})
+  (let [keepalive (atom nil)]
+    (on-start stream)
+    (reset! keepalive
+            (js/setInterval
+              #(.write stream (event {:event "ping"}))
+              30000))
+    (.on stream "close"
+         #(do (on-close stream)
+              (js/clearInterval @keepalive)))))
+
+(defn respond! [stream {:keys [status headers body]}]
+  (.respond stream (merge {":status" status} headers))
+  (.end stream body))
+
+(defn respond-file! [stream {:keys [status headers path]}]
+  (.respondWithFile stream path (merge {":status" status} headers)))
+
+(defn not-found []
+  {:status 404
+   :content-type "text/plain"
+   :body "Not Found"})
+
+(defn file [path content-type]
+  {:status 200
+   :headers {"content-type" content-type}
+   :path path})
+
+(def counter (atom 0))
+(def clients (atom #{}))
 
 (defn handle-counter [f]
   (swap! counter f)
-  (broadcast {:event "counter" :data @counter})
-  (js/Response. "OK" {:status 200}))
+  (broadcast @clients {:event "counter" :data @counter})
+  {:status 200 :headers {"content-type" "text/plain"} :body "OK"})
 
-(def routes
-  {"/"               (file "public/index.html" "text/html")
-   "/app.js"         (file "app.js" "application/javascript")
-   "/node_modules/*" (fn [{:keys [url]}]
-                       (let [url (js/URL. url)
-                             pathname (.-pathname url)]
-                         (file (str ".." pathname) "application/javascript")))
+(defn handler [stream headers]
+  (let [pathname (aget headers ":path")]
+    (condp re-matches pathname
+      ;; >> Static Files
+      #"/" (respond-file! stream (file "public/index.html" "text/html"))
+      #"/app\.js" (respond-file! stream (file "app.js" "application/javascript"))
+      #"/node_modules/.*" (respond-file! stream (file (str ".." pathname) "application/javascript"))
 
-   ;; >> API
-   "/api/sse" #(sse (events %))
-   "/api/counter/inc" #(handle-counter inc)
-   "/api/counter/dec" #(handle-counter dec)})
+      ;; >> API
+      #"/api/sse"
+      (setup-sse stream
+        (fn on-start [stream]
+          (println "New SSE client connected")
+          (swap! clients conj stream)
+          (.write stream (event {:event "counter" :data @counter})))
+        (fn on-close [stream]
+          (println "SSE client disconnected")
+          (swap! clients disj stream)))
+      #"/api/counter/inc" (respond! stream (handle-counter inc))
+      #"/api/counter/dec" (respond! stream (handle-counter dec))
 
-(def default
-  {:port 3000
-   :idleTimeout 40
-   :routes routes
-   :fetch #(js/Response. "Not Found" {:status 404})})
+      ;; >> Default
+      (respond! stream (not-found)))))
+
+(def server
+  (.createSecureServer
+    http2
+    {:key (.readFileSync fs "../localhost-key.pem")
+     :cert (.readFileSync fs "../localhost-cert.pem")
+     :timeout 40000}))
+
+(.on server "stream" handler)
+
+(.listen server 3000 #(println "Server running at https://localhost:3000"))

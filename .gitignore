@@ -1,4 +1,5 @@
-node_modules
-target
+target/
+*.pem
+node_modules/
 .clj-kondo/.cache/v1
 .lsp/.cache
