@@ -4,7 +4,10 @@
   "type": "module",
   "scripts": {
     "dev": "bun run build && cd target && bun run server.js",
-    "build": "squint compile && cp -r public target/",
+    "build": "bun run build:squint && bun run build:bundle && bun run build:copy",
+    "build:squint": "squint compile",
+    "build:bundle": "bun build src/js/entry.js --outdir target/public --minify --sourcemap=external",
+    "build:copy": "cp public/index.html target/public/index.html",
     "watch": "squint watch",
     "clean": "rm -rf target"
   },

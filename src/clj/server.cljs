@@ -6,6 +6,14 @@
 (def counter (atom 0))
 (def clients (atom #{}))
 
+(defn content-type [path]
+  (cond
+    (re-find #"\.html$" path) "text/html"
+    (re-find #"\.js$" path) "application/javascript"
+    (re-find #"\.css$" path) "text/css"
+    (re-find #"\.map$" path) "application/json"
+    :else "application/octet-stream"))
+
 (defn handle-counter [f]
   (swap! counter f)
   (sse/broadcast @clients {:event "counter" :data @counter})
@@ -14,14 +22,6 @@
 (defn handler [stream headers]
   (let [pathname (aget headers ":path")]
     (condp re-matches pathname
-      ;; >> Static Files
-      #"/"
-      (http/respond-file! stream (http/file "public/index.html" "text/html"))
-      #"/app\.js"
-      (http/respond-file! stream (http/file "app.js" "application/javascript"))
-      #"/node_modules/.*" 
-      (http/respond-file! stream (http/file (str ".." pathname) "application/javascript"))
-
       ;; >> API
       #"/api/sse"
       (sse/setup! stream
@@ -32,8 +32,13 @@
         (fn on-close [stream]
           (println "SSE client disconnected")
           (swap! clients disj stream)))
+
       #"/api/counter/inc" (http/respond! stream (handle-counter inc))
       #"/api/counter/dec" (http/respond! stream (handle-counter dec))
+
+      ;; >> Static Files
+      #"/" (http/respond-file! stream (http/file "public/index.html" "text/html"))
+      #"/[^/]+" (http/respond-file! stream (http/file (str "public" pathname) (content-type pathname)))
 
       ;; >> Default
       (http/respond! stream (http/not-found)))))
