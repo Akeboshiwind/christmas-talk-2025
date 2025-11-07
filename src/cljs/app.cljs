@@ -8,7 +8,12 @@
 
 (defn app []
   (let [{:keys [counter]} @state]
-    [:h1 "Counter: " counter]))
+    [:div
+     [:h1 "Counter: " counter]
+     [:button {:on-click #(js/fetch "/api/counter/inc")}
+      "Increment"]
+     [:button {:on-click #(js/fetch "/api/counter/dec")}
+      "Decrement"]]))
 
 
 
