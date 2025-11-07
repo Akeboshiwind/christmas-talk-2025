@@ -48,22 +48,26 @@
                     (swap! clients disj @client)
                     (js/clearInterval @keepalive))})))
 
-(defn handler [req]
-  (let [url (js/URL. (.-url req))
-        pathname (.-pathname url)]
-    (condp re-matches pathname
-      #"/" (file "public/index.html" "text/html")
-      #"/app\.js" (file "app.js" "application/javascript")
-      #"/node_modules/.*" (file (str ".." pathname) "application/javascript")
-      #"/api/sse" (sse (events req))
-      #"/api/counter/inc"
-      (do (swap! counter inc)
-          (broadcast {:event "counter" :data @counter})
-          (js/Response. "OK" {:status 200}))
-      #"/api/counter/dec"
-      (do (swap! counter dec)
-          (broadcast {:event "counter" :data @counter})
-          (js/Response. "OK" {:status 200}))
-      (js/Response. "Not Found" {:status 404}))))
+(defn handle-counter [f]
+  (swap! counter f)
+  (broadcast {:event "counter" :data @counter})
+  (js/Response. "OK" {:status 200}))
 
-(def default {:port 3000 :idleTimeout 40 :fetch handler})
+(def routes
+  {"/"               (file "public/index.html" "text/html")
+   "/app.js"         (file "app.js" "application/javascript")
+   "/node_modules/*" (fn [{:keys [url]}]
+                       (let [url (js/URL. url)
+                             pathname (.-pathname url)]
+                         (file (str ".." pathname) "application/javascript")))
+
+   ;; >> API
+   "/api/sse" #(sse (events %))
+   "/api/counter/inc" #(handle-counter inc)
+   "/api/counter/dec" #(handle-counter dec)})
+
+(def default
+  {:port 3000
+   :idleTimeout 40
+   :routes routes
+   :fetch #(js/Response. "Not Found" {:status 404})})
