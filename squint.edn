@@ -1,4 +1,4 @@
-{:paths ["src/cljs" "src/clj" "src/css"]
+{:paths ["src"]
  :extension "js"
- :output-dir "target"
- :copy-resources #{:css}}
+ :output-dir "build"
+ :copy-resources #{:css :html}}

@@ -8,14 +8,20 @@
 (defn respond-file! [stream {:keys [status headers path]}]
   (.respondWithFile stream path (merge {":status" status} headers)))
 
-(defn not-found []
+(defn response [body]
+  {:status 200
+   :body body})
+
+(defn not-found [body]
   {:status 404
-   :content-type "text/plain"
-   :body "Not Found"})
+   :body body})
+
+(defn content-type [resp content-type]
+  (assoc-in resp [:headers "Content-Type"] content-type))
 
 (defn file [path content-type]
   {:status 200
-   :headers {"content-type" content-type}
+   :headers {"Content-Type" content-type}
    :path path})
 
 (defn run-server [handler opts]

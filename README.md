@@ -5,6 +5,7 @@ A simple full-stack application using Squint (ClojureScript) with Bun.
 ## Prerequisites
 
 - [Bun](https://bun.sh) installed
+- [Babashka](https://babashka.org) installed
 
 ## Setup
 
@@ -16,55 +17,36 @@ bun install
 
 ## Development
 
-Start the dev server:
+Start the development server with hot-reload:
 
 ```bash
-bun run dev
+bb dev
 ```
 
-Server will be available at http://localhost:3000
+This runs Squint compilation, Bun bundling, and the server in parallel with watch mode enabled.
+
+Server will be available at https://localhost:3000
 
 ## Build
 
-Compile Squint code:
+Build for production:
 
 ```bash
-bun run build
+bb build
 ```
 
 Clean build artifacts:
 
 ```bash
-bun run clean
-```
-
-## Adding Dependencies
-
-1. Install the package:
-```bash
-bun add package-name
-```
-
-2. Add to the import map in `public/index.html`:
-```json
-{
-  "imports": {
-    "package-name/": "/node_modules/package-name/"
-  }
-}
-```
-
-3. Use in your Squint code:
-```clojure
-;; Import will be added by Squint compiler
+bb clean
 ```
 
 ## Project Structure
 
 ```
 ├── src/
-│   ├── clj/          # Backend Squint code
-│   └── cljs/         # Frontend Squint code
-├── public/           # Static assets
-└── target/           # Build output (gitignored)
+│   ├── backend/      # Backend Squint code
+│   └── frontend/     # Frontend Squint code
+├── build/            # Squint build output (gitignored)
+└── target/           # Final bundled output (gitignored)
 ```
