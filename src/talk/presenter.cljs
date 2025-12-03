@@ -2,11 +2,7 @@
   (:require ["./ably.js" :as ably]
             ["./ui.js" :as ui]))
 
-
 ;; >> Slides & Questions
-
-(def slides
-  ["intro" "q1" "about" "q2" "q3" "outro"])
 
 (def questions
   {"q1" {:id "q1"
@@ -21,13 +17,16 @@
          :text "What feature would you like to see next?"
          :kind :text}})
 
-(defn question-for-slide [slide-id]
-  (get questions slide-id))
+(def slide-ids
+  ["title" "q1" "q1-results" "about" "q2" "q2-results" "q3" "q3-results" "outro"])
+
+(defn get-question [question-id]
+  (get questions question-id))
 
 
 ;; >> State
 
-(def default-state {:slide-id (first slides)
+(def default-state {:slide-id (first slide-ids)
                     :audience-count 0})
 
 (defn save-state! []
@@ -37,7 +36,7 @@
 (defn load-state []
   (when-let [saved (js/localStorage.getItem "presenter-state")]
     (let [parsed (js/JSON.parse saved)]
-      {:slide-id (or (:slide-id parsed) (first slides))})))
+      {:slide-id (or (:slide-id parsed) (first slide-ids))})))
 
 (def state (atom (merge default-state (load-state))))
 
@@ -67,18 +66,18 @@
 
 (defn current-slide-index []
   (let [current (:slide-id @state)]
-    (or (.indexOf slides current) 0)))
+    (or (.indexOf slide-ids current) 0)))
 
 (defn next-slide! []
   (let [idx (current-slide-index)
-        next-idx (min (dec (count slides)) (inc idx))]
-    (swap! state assoc :slide-id (nth slides next-idx))
+        next-idx (min (dec (count slide-ids)) (inc idx))]
+    (swap! state assoc :slide-id (nth slide-ids next-idx))
     (sync-state!)))
 
 (defn prev-slide! []
   (let [idx (current-slide-index)
         prev-idx (max 0 (dec idx))]
-    (swap! state assoc :slide-id (nth slides prev-idx))
+    (swap! state assoc :slide-id (nth slide-ids prev-idx))
     (sync-state!)))
 
 (defn go-to-slide! [slide-id]
@@ -87,7 +86,7 @@
 
 (defn reset-state! []
   (js/localStorage.removeItem "presenter-state")
-  (swap! state assoc :slide-id (first slides))
+  (swap! state assoc :slide-id (first slide-ids))
   (sync-state!))
 
 
@@ -100,21 +99,18 @@
         children))
 
 (defn slide-button [slide-id disabled?]
-  (let [current? (= slide-id (:slide-id @state))
-        question (question-for-slide slide-id)]
-    [button {:class (cond
-                      current? "px-4 py-2 bg-green-600 text-white rounded-lg disabled:bg-gray-400"
-                      question "px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:bg-gray-400"
-                      :else "px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-400")
+  (let [current? (= slide-id (:slide-id @state))]
+    [button {:class (if current?
+                      "px-4 py-2 bg-green-600 text-white rounded-lg disabled:bg-gray-400"
+                      "px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-400")
              :on-click #(go-to-slide! slide-id)
              :disabled disabled?}
-     slide-id
-     (when question " (Q)")]))
+     slide-id]))
 
 (defn presenter-ui []
   (let [disabled? (not (ably/connected?))
         current-slide (:slide-id @state)
-        current-question (question-for-slide current-slide)]
+        idx (current-slide-index)]
     [:div {:class "p-4 space-y-6 max-w-md mx-auto"}
      [:h1 {:class "text-2xl font-bold"} "Presenter Controls"]
 
@@ -126,18 +122,15 @@
       [:div {:class "flex gap-2 items-center"}
        [button {:on-click prev-slide! :disabled disabled?} "Prev"]
        [:span {:class "px-4 py-2 font-mono text-lg"} current-slide]
-       [button {:on-click next-slide! :disabled disabled?} "Next"]]
-      (when current-question
-        [:div {:class "mt-2 p-2 bg-purple-100 rounded"}
-         [:div {:class "font-semibold"} "Question: " (:text current-question)]
-         [:div {:class "text-sm text-gray-600"} "Type: " (:kind current-question)]])]
+       [:span {:class "text-gray-500"} "(" (inc idx) "/" (count slide-ids) ")"]
+       [button {:on-click next-slide! :disabled disabled?} "Next"]]]
 
      [:div {:class "space-y-2"}
       [:h2 {:class "text-xl font-semibold"} "All Slides"]
       [:div {:class "flex flex-wrap gap-2"}
-       (for [slide-id slides]
-         ^{:key slide-id}
-         [slide-button slide-id disabled?])]]
+       (for [sid slide-ids]
+         ^{:key sid}
+         [slide-button sid disabled?])]]
 
      [:div {:class "pt-4 border-t"}
       [button {:class "px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:bg-gray-400"
