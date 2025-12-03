@@ -1,6 +1,7 @@
 (ns talk.audience
   (:require ["./ably.js" :as ably]
-            ["./presenter.js" :as presenter]))
+            ["./presenter.js" :as presenter]
+            ["./ui.js" :as ui]))
 
 
 ;; >> State
@@ -93,19 +94,13 @@
    [:h2 {:class "text-xl"} "Waiting for next question..."]
    [:p "The presenter will activate a question soon."]])
 
-(defn connection-pill []
-  (let [status (ably/connection-status)]
-    (when-not (ably/connected?)
-      [:div {:class "fixed bottom-4 left-1/2 -translate-x-1/2 px-4 py-2 bg-yellow-500 text-white rounded-full text-sm font-medium shadow-lg"}
-       "Connection status: " status])))
-
 (defn audience-ui []
   [:div {:class "p-4 max-w-md mx-auto"}
    [:h1 {:class "text-2xl font-bold mb-4 text-center"} "Vote"]
    (if-let [q (current-question)]
      [question-ui q]
      [waiting-ui])
-   [connection-pill]])
+   [ui/connection-pill]])
 
 
 

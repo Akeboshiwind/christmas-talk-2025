@@ -1,5 +1,6 @@
 (ns talk.presenter
-  (:require ["./ably.js" :as ably]))
+  (:require ["./ably.js" :as ably]
+            ["./ui.js" :as ui]))
 
 
 ;; >> Slides & Questions
@@ -110,12 +111,6 @@
      slide-id
      (when question " (Q)")]))
 
-(defn connection-pill []
-  (let [status (ably/connection-status)]
-    (when-not (ably/connected?)
-      [:div {:class "fixed bottom-4 left-1/2 -translate-x-1/2 px-4 py-2 bg-yellow-500 text-white rounded-full text-sm font-medium shadow-lg"}
-       "Connection status: " status])))
-
 (defn presenter-ui []
   (let [disabled? (not (ably/connected?))
         current-slide (:slide-id @state)
@@ -150,7 +145,7 @@
                :disabled disabled?}
        "Reset"]]
 
-     [connection-pill]]))
+     [ui/connection-pill]]))
 
 
 
