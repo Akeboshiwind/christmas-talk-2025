@@ -15,14 +15,34 @@
 
 
 
+;; >> Utilities
+
+(defn debounce [f delay-ms]
+  (let [timeout (atom nil)]
+    (fn [& args]
+      (when-let [t @timeout]
+        (js/clearTimeout t))
+      (reset! timeout
+        (js/setTimeout #(apply f args) delay-ms)))))
+
+
+
 ;; >> Voting
 
+(def publish-vote!
+  (debounce
+    (fn [question-id value]
+      (ably/publish! "votes" "vote" {:client-id ably/client-id
+                                      :question-id question-id
+                                      :value value
+                                      :timestamp (js/Date.now)}))
+    100))
+
 (defn submit-vote! [question-id value]
+  ;; Update local state immediately for responsiveness
   (swap! state assoc-in [:my-votes question-id] value)
-  (ably/publish! "votes" "vote" {:client-id ably/client-id
-                                  :question-id question-id
-                                  :value value
-                                  :timestamp (js/Date.now)}))
+  ;; Debounced publish to Ably
+  (publish-vote! question-id value))
 
 
 
@@ -36,17 +56,37 @@
 
 (defn scale-voter [question-id question]
   (let [current-vote (my-vote-for question-id)
-        {:keys [min max]} (:options question)]
+        {:keys [min max unit]} (:options question)
+        value (or current-vote min)
+        on-value-change (fn [v]
+                          (let [clamped (-> v (cljs.core/max min) (cljs.core/min max))]
+                            (submit-vote! question-id clamped)))]
     [:div {:class "space-y-4"}
      [:h2 {:class "text-xl font-semibold text-center"} (:text question)]
-     [:div {:class "flex flex-wrap gap-2 justify-center"}
-      (for [n (range min (inc max))]
-        ^{:key n}
-        [button {:class (if (= n current-vote)
-                          "px-4 py-2 bg-green-600 text-white rounded-lg"
-                          "px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700")
-                 :on-click #(submit-vote! question-id n)}
-         (str n)])]]))
+     ;; Value input with optional unit
+     [:div {:class "flex items-center justify-center gap-2"}
+      [:input {:type "number"
+               :min min
+               :max max
+               :value value
+               :class "w-20 text-4xl font-bold text-center border-b-2 border-gray-300 focus:border-blue-500 outline-none"
+               :on-change #(let [v (js/parseInt (.. % -target -value))]
+                             (when-not (js/isNaN v)
+                               (on-value-change v)))}]
+      (when unit
+        [:span {:class "text-xl text-gray-600"} unit])]
+     ;; Slider
+     [:div {:class "space-y-1"}
+      [:input {:type "range"
+               :min min
+               :max max
+               :value value
+               :class "w-full h-3 bg-gray-200 rounded-lg appearance-none cursor-pointer"
+               :on-change #(on-value-change (js/parseInt (.. % -target -value)))}]
+      ;; Min/max labels
+      [:div {:class "flex justify-between text-sm text-gray-500"}
+       [:span min]
+       [:span max]]]]))
 
 (defn choice-voter [question-id question]
   (let [current-vote (my-vote-for question-id)]
