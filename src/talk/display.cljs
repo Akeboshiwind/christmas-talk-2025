@@ -5,10 +5,12 @@
 
 ;; >> State
 
-(def state (atom {:slide-index 0
-                  :active-question nil
+(def state (atom {:slide-id nil
                   :votes {}  ;; {client-id -> vote}
                   :audience-count 0}))
+
+(defn current-question []
+  (presenter/question-for-slide (:slide-id @state)))
 
 
 
@@ -17,8 +19,8 @@
 (defn process-vote [vote]
   (let [client-id (:client-id vote)
         question-id (:question-id vote)]
-    ;; Only process votes for the active question
-    (when (= question-id (:id (:active-question @state)))
+    ;; Only process votes for the current question
+    (when (= question-id (:id (current-question)))
       (swap! state assoc-in [:votes client-id] vote))))
 
 
@@ -111,7 +113,7 @@
 (defn slide-ui []
   [:div {:class "w-screen h-screen flex items-center justify-center bg-gray-100"}
    [:div {:class "text-center"}
-    [:h1 {:class "text-6xl font-bold"} "Slide " (:slide-index @state)]
+    [:h1 {:class "text-6xl font-bold font-mono"} (:slide-id @state)]
     [:p {:class "text-xl text-gray-600 mt-4"}
      (:audience-count @state) " audience members connected"]]])
 
@@ -123,7 +125,7 @@
 
 (defn display-ui []
   [:div {:class "w-screen h-screen"}
-   (if-let [q (:active-question @state)]
+   (if-let [q (current-question)]
      [:div {:class "w-full h-full flex items-center justify-center bg-white p-8"}
       [question-results-ui q]]
      [slide-ui])
@@ -153,14 +155,12 @@
       (presenter/get-state
         (fn [presenter-state]
           (when presenter-state
-            (let [new-question (:active-question presenter-state)
-                  current-question (:active-question @state)]
-              ;; Clear votes when question changes
-              (when (not= (:id new-question) (:id current-question))
+            (let [new-slide-id (:slide-id presenter-state)
+                  old-slide-id (:slide-id @state)]
+              ;; Clear votes when slide changes
+              (when (not= new-slide-id old-slide-id)
                 (swap! state assoc :votes {}))
-              (swap! state assoc
-                     :slide-index (:slide-index presenter-state)
-                     :active-question new-question)))))))
+              (swap! state assoc :slide-id new-slide-id)))))))
 
   ;; Subscribe to votes
   (ably/subscribe! "votes" process-vote))

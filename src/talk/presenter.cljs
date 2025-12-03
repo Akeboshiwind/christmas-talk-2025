@@ -2,40 +2,43 @@
   (:require ["./ably.js" :as ably]))
 
 
+;; >> Slides & Questions
+
+(def slides
+  ["intro" "q1" "about" "q2" "q3" "outro"])
+
+(def questions
+  {"q1" {:id "q1"
+         :text "How familiar are you with Clojure?"
+         :kind :scale
+         :options {:min 1 :max 10}}
+   "q2" {:id "q2"
+         :text "What's your favorite programming paradigm?"
+         :kind :choice
+         :options ["Functional" "Object-Oriented" "Procedural" "Other"]}
+   "q3" {:id "q3"
+         :text "What feature would you like to see next?"
+         :kind :text}})
+
+(defn question-for-slide [slide-id]
+  (get questions slide-id))
+
+
 ;; >> State
 
-(def default-state {:slide-index 0
-                    :active-question nil
+(def default-state {:slide-id (first slides)
                     :audience-count 0})
 
 (defn save-state! []
   (js/localStorage.setItem "presenter-state"
-    (js/JSON.stringify (select-keys @state [:slide-index :active-question]))))
+    (js/JSON.stringify (select-keys @state [:slide-id]))))
 
 (defn load-state []
   (when-let [saved (js/localStorage.getItem "presenter-state")]
     (let [parsed (js/JSON.parse saved)]
-      {:slide-index (or (:slide-index parsed) 0)
-       :active-question (:active-question parsed)})))
+      {:slide-id (or (:slide-id parsed) (first slides))})))
 
 (def state (atom (merge default-state (load-state))))
-
-
-
-;; >> Questions Data
-
-(def questions
-  [{:id "q1"
-    :text "How familiar are you with Clojure?"
-    :kind :scale
-    :options {:min 1 :max 10}}
-   {:id "q2"
-    :text "What's your favorite programming paradigm?"
-    :kind :choice
-    :options ["Functional" "Object-Oriented" "Procedural" "Other"]}
-   {:id "q3"
-    :text "What feature would you like to see next?"
-    :kind :text}])
 
 (def CHANNEL "presenter")
 
@@ -55,32 +58,35 @@
 
 (defn sync-state! []
   (save-state!)
-  (ably/update-presence! CHANNEL {:slide-index (:slide-index @state)
-                                   :active-question (:active-question @state)}))
+  (ably/update-presence! CHANNEL {:slide-id (:slide-id @state)}))
 
 
 
 ;; >> Control Actions
 
+(defn current-slide-index []
+  (let [current (:slide-id @state)]
+    (or (.indexOf slides current) 0)))
+
 (defn next-slide! []
-  (swap! state update :slide-index inc)
-  (sync-state!))
+  (let [idx (current-slide-index)
+        next-idx (min (dec (count slides)) (inc idx))]
+    (swap! state assoc :slide-id (nth slides next-idx))
+    (sync-state!)))
 
 (defn prev-slide! []
-  (swap! state update :slide-index #(max 0 (dec %)))
-  (sync-state!))
+  (let [idx (current-slide-index)
+        prev-idx (max 0 (dec idx))]
+    (swap! state assoc :slide-id (nth slides prev-idx))
+    (sync-state!)))
 
-(defn activate-question! [question]
-  (swap! state assoc :active-question question)
-  (sync-state!))
-
-(defn close-question! []
-  (swap! state assoc :active-question nil)
+(defn go-to-slide! [slide-id]
+  (swap! state assoc :slide-id slide-id)
   (sync-state!))
 
 (defn reset-state! []
   (js/localStorage.removeItem "presenter-state")
-  (swap! state merge {:slide-index 0 :active-question nil})
+  (swap! state assoc :slide-id (first slides))
   (sync-state!))
 
 
@@ -92,16 +98,17 @@
                         attrs)]
         children))
 
-(defn question-button [q disabled?]
-  (let [active? (= (:id q) (:id (:active-question @state)))]
-    [button {:class (if active?
-                      "px-4 py-2 bg-green-600 text-white rounded-lg disabled:bg-gray-400"
-                      "px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-400")
-             :on-click (if active?
-                         close-question!
-                         #(activate-question! q))
+(defn slide-button [slide-id disabled?]
+  (let [current? (= slide-id (:slide-id @state))
+        question (question-for-slide slide-id)]
+    [button {:class (cond
+                      current? "px-4 py-2 bg-green-600 text-white rounded-lg disabled:bg-gray-400"
+                      question "px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:bg-gray-400"
+                      :else "px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-400")
+             :on-click #(go-to-slide! slide-id)
              :disabled disabled?}
-     (if active? "Close: " "Open: ") (:text q)]))
+     slide-id
+     (when question " (Q)")]))
 
 (defn connection-pill []
   (let [status (ably/connection-status)]
@@ -110,7 +117,9 @@
        "Connection status: " status])))
 
 (defn presenter-ui []
-  (let [disabled? (not (ably/connected?))]
+  (let [disabled? (not (ably/connected?))
+        current-slide (:slide-id @state)
+        current-question (question-for-slide current-slide)]
     [:div {:class "p-4 space-y-6 max-w-md mx-auto"}
      [:h1 {:class "text-2xl font-bold"} "Presenter Controls"]
 
@@ -118,17 +127,22 @@
       "Audience connected: " (:audience-count @state)]
 
      [:div {:class "space-y-2"}
-      [:h2 {:class "text-xl font-semibold"} "Slides"]
-      [:div {:class "flex gap-2"}
+      [:h2 {:class "text-xl font-semibold"} "Current Slide"]
+      [:div {:class "flex gap-2 items-center"}
        [button {:on-click prev-slide! :disabled disabled?} "Prev"]
-       [:span {:class "px-4 py-2"} "Slide " (:slide-index @state)]
-       [button {:on-click next-slide! :disabled disabled?} "Next"]]]
+       [:span {:class "px-4 py-2 font-mono text-lg"} current-slide]
+       [button {:on-click next-slide! :disabled disabled?} "Next"]]
+      (when current-question
+        [:div {:class "mt-2 p-2 bg-purple-100 rounded"}
+         [:div {:class "font-semibold"} "Question: " (:text current-question)]
+         [:div {:class "text-sm text-gray-600"} "Type: " (:kind current-question)]])]
 
      [:div {:class "space-y-2"}
-      [:h2 {:class "text-xl font-semibold"} "Questions"]
-      (for [q questions]
-        ^{:key (:id q)}
-        [question-button q disabled?])]
+      [:h2 {:class "text-xl font-semibold"} "All Slides"]
+      [:div {:class "flex flex-wrap gap-2"}
+       (for [slide-id slides]
+         ^{:key slide-id}
+         [slide-button slide-id disabled?])]]
 
      [:div {:class "pt-4 border-t"}
       [button {:class "px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:bg-gray-400"
@@ -150,8 +164,7 @@
       (swap! state identity)))
 
   ;; Enter presenter presence with initial state
-  (ably/enter-presence! CHANNEL {:slide-index (:slide-index @state)
-                                  :active-question (:active-question @state)})
+  (ably/enter-presence! CHANNEL {:slide-id (:slide-id @state)})
 
   ;; Watch audience count
   (ably/on-presence-change! "audience"

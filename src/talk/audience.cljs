@@ -5,17 +5,20 @@
 
 ;; >> State
 
-(def state (atom {:active-question nil
+(def state (atom {:slide-id nil
                   :my-vote nil}))
 
 (def CHANNEL "audience")
+
+(defn current-question []
+  (presenter/question-for-slide (:slide-id @state)))
 
 
 
 ;; >> Voting
 
 (defn submit-vote! [value]
-  (when-let [q (:active-question @state)]
+  (when-let [q (current-question)]
     (println "Submitting vote:" value)
     (swap! state assoc :my-vote value)
     (ably/publish! "votes" "vote" {:client-id ably/client-id
@@ -96,7 +99,7 @@
 (defn audience-ui []
   [:div {:class "p-4 max-w-md mx-auto"}
    [:h1 {:class "text-2xl font-bold mb-4 text-center"} "Vote"]
-   (if-let [q (:active-question @state)]
+   (if-let [q (current-question)]
      [question-ui q]
      [waiting-ui])
    [connection-pill]])
@@ -115,15 +118,15 @@
   ;; Enter audience presence (for counting)
   (ably/enter-presence! CHANNEL)
 
-  ;; Watch presenter for current question
+  ;; Watch presenter for current slide
   (presenter/on-state-change!
     (fn []
       (presenter/get-state
         (fn [presenter-state]
           (when presenter-state
-            (let [new-question (:active-question presenter-state)
-                  current-question (:active-question @state)]
-              ;; Reset vote when question changes
-              (when (not= (:id new-question) (:id current-question))
+            (let [new-slide-id (:slide-id presenter-state)
+                  old-slide-id (:slide-id @state)]
+              ;; Reset vote when slide changes
+              (when (not= new-slide-id old-slide-id)
                 (swap! state assoc :my-vote nil))
-              (swap! state assoc :active-question new-question))))))))
+              (swap! state assoc :slide-id new-slide-id))))))))
