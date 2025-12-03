@@ -161,7 +161,9 @@
               :on-click (fn []
                           (let [input (js/document.getElementById input-id)
                                 value (.-value input)]
-                            (send-speaker-message! value)))}
+                            (when (seq (.trim value))
+                              (send-speaker-message! value)
+                              (set! (.-value input) ""))))}
       "Send Message"]
      (when (seq current-message)
        [:div {:class "text-xs text-gray-400"} "Your message is live on screen"])]))
