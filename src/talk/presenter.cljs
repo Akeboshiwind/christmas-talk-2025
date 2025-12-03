@@ -139,8 +139,10 @@
 
 (defn reset-state! []
   (js/localStorage.removeItem "presenter-state")
-  (swap! state assoc :slide-id (first slide-ids))
-  (sync-state!))
+  (swap! state assoc :slide-id (first slide-ids) :selected-speaker nil)
+  (sync-state!)
+  ;; Broadcast reset to all clients
+  (ably/publish! "control" "reset" {:timestamp (js/Date.now)}))
 
 
 
@@ -229,7 +231,8 @@
 
       [:div {:class "pt-4 border-t border-gray-700"}
        [button {:class "px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:bg-gray-600"
-                :on-click reset-state!
+                :on-click #(when (js/confirm "Reset all state for presenter, display, and audience?")
+                             (reset-state!))
                 :disabled disabled?}
         "Reset"]]
 

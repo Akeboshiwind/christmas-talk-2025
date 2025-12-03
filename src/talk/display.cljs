@@ -25,6 +25,16 @@
 
 (def state (atom (merge default-state (load-state))))
 
+(defn reset-state! []
+  (let [audience-count (:audience-count @state)]
+    (js/localStorage.removeItem "display-state")
+    (reset! state (assoc default-state :audience-count audience-count))
+    ;; Re-fetch presenter state
+    (presenter/get-state
+      (fn [presenter-state]
+        (when presenter-state
+          (swap! state assoc :slide-id (:slide-id presenter-state)))))))
+
 
 
 ;; >> Vote Processing
@@ -528,6 +538,9 @@
 
   ;; Subscribe to reactions
   (ably/subscribe! "reactions" process-reaction)
+
+  ;; Subscribe to control channel for reset
+  (ably/subscribe! "control" (fn [_] (reset-state!)))
 
   ;; Cleanup old reactions periodically (just to free memory)
   (js/setInterval cleanup-old-reactions! 5000))

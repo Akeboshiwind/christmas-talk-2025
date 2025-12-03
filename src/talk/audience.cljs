@@ -20,6 +20,17 @@
 
 (def state (atom (merge default-state (load-state))))
 
+(defn reset-state! []
+  (js/localStorage.removeItem "audience-state")
+  (reset! state default-state)
+  ;; Re-fetch presenter state
+  (presenter/get-state
+    (fn [presenter-state]
+      (when presenter-state
+        (swap! state assoc
+               :slide-id (:slide-id presenter-state)
+               :selected-speaker (:selected-speaker presenter-state))))))
+
 (def CHANNEL "audience")
 (def SPEAKER-CHANNEL "speaker")
 (def REACTIONS-CHANNEL "reactions")
@@ -255,4 +266,7 @@
           (when presenter-state
             (swap! state assoc
                    :slide-id (:slide-id presenter-state)
-                   :selected-speaker (:selected-speaker presenter-state))))))))
+                   :selected-speaker (:selected-speaker presenter-state)))))))
+
+  ;; Subscribe to control channel for reset
+  (ably/subscribe! "control" (fn [_] (reset-state!))))
