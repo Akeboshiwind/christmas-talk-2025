@@ -2,9 +2,11 @@
   (:require ["./ably.js" :as ably]
             ["./presenter.js" :as presenter]
             ["./ui.js" :as ui]
+            ["qrcode" :as QRCode]
             [clojure.string :as str]))
 
 (def persimmon-img "/persimmon.jpeg")
+(def join-url "crowd.example.com")
 
 
 ;; >> State
@@ -13,7 +15,8 @@
                     :votes {}  ;; {question-id -> {:latest-vote {client-id -> vote}, :all-votes [vote]}}
                     :audience-count 0
                     :speaker-messages []
-                    :reactions []})
+                    :reactions []
+                    :qr-code-data nil})
 
 (defn save-state! []
   (js/localStorage.setItem "display-state"
@@ -188,7 +191,9 @@
   [slide-wrapper
    [:div {:class "text-center"}
     [:h1 {:class "text-7xl font-bold mb-8"} "Wisdom of the Crowd"]
-    [:p {:class "text-2xl text-gray-400"} "Join at crowd.example.com"]]])
+    (when (:qr-code-data @state)
+      [:img {:src (:qr-code-data @state) :class "mx-auto mb-4 rounded-lg"}])
+    [:p {:class "text-2xl text-gray-400"} "Join at " join-url]]])
 
 (defn about-slide []
   [slide-wrapper
@@ -509,6 +514,11 @@
 ;; >> Init
 
 (defn init! []
+
+  ;; Generate QR code
+  (-> (QRCode/toDataURL (str "https://" join-url) #js {:width 200 :margin 1})
+      (.then #(swap! state assoc :qr-code-data %))
+      (.catch #(println "QR code generation failed:" %)))
 
   ;; Re-render when ably connection status changes
   (add-watch ably/state ::connection
