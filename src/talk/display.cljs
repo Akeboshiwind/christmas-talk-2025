@@ -3,6 +3,8 @@
             ["./presenter.js" :as presenter]
             ["./ui.js" :as ui]))
 
+(def persimmon-img "/persimmon.jpeg")
+
 
 ;; >> State
 
@@ -68,54 +70,91 @@
 
 
 
-;; >> Title Slide
+;; >> Content Slides
 
 (defn title-slide []
   [slide-wrapper
    [:div {:class "text-center"}
     [:h1 {:class "text-7xl font-bold mb-8"} "Wisdom of the Crowd"]
-    [:p {:class "text-2xl text-gray-400"} "Connect using https://crowd.example.com"]]])
+    [:p {:class "text-2xl text-gray-400"} "Join at crowd.example.com"]]])
 
-(defn outro-slide []
+(defn about-slide []
   [slide-wrapper
    [:div {:class "text-center"}
-    [:h1 {:class "text-7xl font-bold mb-8"} "Thank You!"]
-    [:p {:class "text-2xl text-gray-400"} "Questions?"]]])
+    [:h1 {:class "text-5xl font-bold"} "What is this talk about?"]]])
+
+(defn wotc-slide []
+  [slide-wrapper
+   [:div {:class "text-center"}
+    [:h1 {:class "text-5xl font-bold"} "What is Wisdom of the Crowd?"]]])
+
+(defn wotc-answer-slide []
+  [slide-wrapper
+   [:div {:class "text-center space-y-8"}
+    [:p {:class "text-4xl"} "Ask a crowd a question"]
+    [:p {:class "text-4xl"} "get a surprisingly accurate answer back"]]])
+
+(defn rules-slide []
+  [slide-wrapper
+   [:div {:class "text-center"}
+    [:h1 {:class "text-5xl font-bold"} "First some ground rules"]]])
 
 
 
 ;; >> Question Slide
 
-(defn question-slide [question-id]
-  (let [question (presenter/get-question question-id)
-        responses (response-count question-id)
-        audience (:audience-count @state)]
-    [slide-wrapper
-     [:div {:class "text-center"}
-      [:h1 {:class "text-5xl font-bold mb-8"} (:text question)]
-      [:p {:class "text-2xl text-gray-400"} responses " / " audience " Responses Received"]]]))
+(defn question-slide
+  ([question-id] (question-slide question-id nil))
+  ([question-id image]
+   (let [question (presenter/get-question question-id)
+         responses (response-count question-id)
+         audience (:audience-count @state)]
+     [slide-wrapper
+      [:div {:class "text-center"}
+       [:h1 {:class "text-5xl font-bold mb-8"} (:text question)]
+       (when image
+         [:img {:src image :class "max-h-64 mx-auto mb-8 rounded-lg"}])
+       [:p {:class "text-2xl text-gray-400"} responses " / " audience " Responses Received"]]])))
 
 
 
 ;; >> Analysis Slide
 
 (defn scale-chart [question-id question]
-  (let [stats (scale-stats question-id)]
+  (let [stats (scale-stats question-id)
+        min-val (get-in question [:options :min])
+        max-val (get-in question [:options :max])
+        unit (get-in question [:options :unit])
+        range-size (- max-val min-val)
+        bin-size (or (get-in question [:options :bin-size])
+                     (js/Math.ceil (/ (inc range-size) (js/Math.min 10 (inc range-size)))))
+        num-bins (js/Math.ceil (/ (inc range-size) bin-size))
+        bins (vec (for [i (range num-bins)]
+                 (let [bin-start (+ min-val (* i bin-size))
+                       bin-end (js/Math.min max-val (+ bin-start (dec bin-size)))]
+                   {:start bin-start
+                    :end bin-end
+                    :count (if stats
+                             (reduce + (for [v (range bin-start (inc bin-end))]
+                                         (get (:distribution stats) v 0)))
+                             0)})))
+        max-count (apply max 1 (map :count bins))]
     (if stats
       [:div {:class "text-center space-y-4"}
        [:div {:class "text-8xl font-bold text-blue-400"}
-        (.toFixed (:average stats) 1)]
+        (.toFixed (:average stats) 1)
+        (when unit [:span {:class "text-4xl ml-2"} unit])]
        [:div {:class "text-xl text-gray-400"}
         "Average from " (:count stats) " responses"]
-       [:div {:class "flex justify-center gap-2 mt-8"}
-        (for [n (range (get-in question [:options :min])
-                       (inc (get-in question [:options :max])))]
-          (let [cnt (get (:distribution stats) n 0)]
-            ^{:key n}
-            [:div {:class "text-center"}
-             [:div {:class "bg-blue-500 w-12 rounded-t"
-                    :style {:height (str (* cnt 30) "px")}}]
-             [:div {:class "text-sm text-gray-400 mt-1"} n]]))]]
+       [:div {:class "flex justify-center items-end gap-1 mt-8 px-4"}
+        (for [{:keys [start end count]} bins]
+          (let [height (if (pos? max-count) (* 150 (/ count max-count)) 0)]
+            ^{:key start}
+            [:div {:class "flex-1 text-center min-w-0"}
+             [:div {:class "bg-blue-500 rounded-t mx-auto"
+                    :style {:height (str height "px")}}]
+             [:div {:class "text-xs text-gray-400 mt-1 truncate"}
+              (if (= start end) start (str start "-" end))]]))]]
       [:div {:class "text-2xl text-gray-500"} "No responses yet"])))
 
 (defn choice-chart [question-id question]
@@ -159,15 +198,6 @@
 
 
 
-;; >> Content Slide
-
-(defn content-slide [title]
-  [slide-wrapper
-   [:div {:class "text-center"}
-    [:h1 {:class "text-5xl font-bold"} title]]])
-
-
-
 ;; >> Default Slide
 
 (defn default-slide [slide-id]
@@ -182,14 +212,14 @@
 (defn render-slide [slide-id]
   (case slide-id
     "title" [title-slide]
-    "outro" [outro-slide]
+    "about" [about-slide]
+    "wotc" [wotc-slide]
     "q1" [question-slide "q1"]
-    "q2" [question-slide "q2"]
-    "q3" [question-slide "q3"]
     "q1-results" [analysis-slide "q1"]
+    "wotc-answer" [wotc-answer-slide]
+    "rules" [rules-slide]
+    "q2" [question-slide "q2" persimmon-img]
     "q2-results" [analysis-slide "q2"]
-    "q3-results" [analysis-slide "q3"]
-    "about" [content-slide "About Clojure"]
     [default-slide slide-id]))
 
 (defn display-ui []

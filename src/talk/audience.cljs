@@ -59,7 +59,7 @@
         {:keys [min max unit]} (:options question)
         value (or current-vote min)
         on-value-change (fn [v]
-                          (let [clamped (-> v (cljs.core/max min) (cljs.core/min max))]
+                          (let [clamped (js/Math.min max (js/Math.max min v))]
                             (submit-vote! question-id clamped)))]
     [:div {:class "space-y-4"}
      [:h2 {:class "text-xl font-semibold text-center"} (:text question)]
@@ -69,7 +69,7 @@
                :min min
                :max max
                :value value
-               :class "w-20 text-4xl font-bold text-center border-b-2 border-gray-300 focus:border-blue-500 outline-none"
+               :class "w-full text-4xl font-bold text-center border-b-2 border-gray-300 focus:border-blue-500 outline-none"
                :on-change #(let [v (js/parseInt (.. % -target -value))]
                              (when-not (js/isNaN v)
                                (on-value-change v)))}]
@@ -142,7 +142,6 @@
   (case slide-id
     "q1" [question-voter "q1"]
     "q2" [question-voter "q2"]
-    "q3" [question-voter "q3"]
     [waiting-ui]))
 
 (defn audience-ui []

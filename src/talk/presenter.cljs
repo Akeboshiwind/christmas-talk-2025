@@ -4,21 +4,32 @@
 
 ;; >> Slides & Questions
 
+(def slides
+  ["title"
+   "about"
+   ["wotc" "q1" "q1-results" "wotc-answer"]
+   ["rules" "q2" "q2-results"]])
+
+(def slide-ids (->> slides
+                    (map #(if (string? %) [%] %))
+                    (apply concat)
+                    vec))
+
 (def questions
   {"q1" {:id "q1"
-         :text "How familiar are you with Clojure?"
-         :kind :scale
-         :options {:min 1 :max 10}}
-   "q2" {:id "q2"
-         :text "What's your favorite programming paradigm?"
+         :text "Who has heard of \"Wisdom of the Crowd\" before?"
          :kind :choice
-         :options ["Functional" "Object-Oriented" "Procedural" "Other"]}
-   "q3" {:id "q3"
-         :text "What feature would you like to see next?"
-         :kind :text}})
+         :options ["Yes" "No" "Maybe"]}
+   "q2" {:id "q2"
+         :text "How heavy is this Persimmon (in grams)?"
+         :kind :scale
+         :options {:min 1 :max 500 :unit "g" :bin-size 50}}})
 
-(def slide-ids
-  ["title" "q1" "q1-results" "about" "q2" "q2-results" "q3" "q3-results" "outro"])
+(def notes
+  {"about" ["This is my backup idea..."
+            "So let's just have fun"]
+   "rules" ["1. No peeking!"
+            "2. That's it"]})
 
 (defn get-question [question-id]
   (get questions question-id))
@@ -125,12 +136,25 @@
        [:span {:class "text-gray-500"} "(" (inc idx) "/" (count slide-ids) ")"]
        [button {:on-click next-slide! :disabled disabled?} "Next"]]]
 
+     (when-let [slide-notes (get notes current-slide)]
+       [:div {:class "p-3 bg-yellow-50 border border-yellow-200 rounded-lg"}
+        [:h2 {:class "text-sm font-semibold text-yellow-800 mb-2"} "Notes"]
+        [:div {:class "space-y-1"}
+         (for [[idx note] (map-indexed vector slide-notes)]
+           ^{:key idx}
+           [:p {:class "text-yellow-900"} note])]])
+
      [:div {:class "space-y-2"}
       [:h2 {:class "text-xl font-semibold"} "All Slides"]
-      [:div {:class "flex flex-wrap gap-2"}
-       (for [sid slide-ids]
-         ^{:key sid}
-         [slide-button sid disabled?])]]
+      [:div {:class "flex flex-col gap-2"}
+       (for [[idx item] (map-indexed vector slides)]
+         ^{:key idx}
+         (if (string? item)
+           [slide-button item disabled?]
+           [:div {:class "flex gap-2"}
+            (for [sid item]
+              ^{:key sid}
+              [slide-button sid disabled?])]))]]
 
      [:div {:class "pt-4 border-t"}
       [button {:class "px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:bg-gray-400"

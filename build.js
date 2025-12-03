@@ -42,6 +42,7 @@ async function buildFrontend() {
         plugins: [tailwindPlugin],
     });
     await copyFile('./src/index.html', './target/public/index.html');
+    await copyFile('./src/IMG_5313.smaller.jpeg', './target/public/persimmon.jpeg');
 }
 
 
