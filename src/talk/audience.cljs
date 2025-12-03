@@ -6,12 +6,15 @@
 ;; >> State
 
 (def state (atom {:slide-id nil
-                  :my-vote nil}))
+                  :my-votes {}}))  ;; {slide-id -> vote-value}
 
 (def CHANNEL "audience")
 
 (defn current-question []
   (presenter/question-for-slide (:slide-id @state)))
+
+(defn my-vote []
+  (get (:my-votes @state) (:slide-id @state)))
 
 
 
@@ -20,7 +23,7 @@
 (defn submit-vote! [value]
   (when-let [q (current-question)]
     (println "Submitting vote:" value)
-    (swap! state assoc :my-vote value)
+    (swap! state assoc-in [:my-votes (:slide-id @state)] value)
     (ably/publish! "votes" "vote" {:client-id ably/client-id
                                     :question-id (:id q)
                                     :value value
@@ -37,22 +40,22 @@
         children))
 
 (defn scale-input [{:keys [min max]}]
-  (let [my-vote (:my-vote @state)]
+  (let [current-vote (my-vote)]
     [:div {:class "flex flex-wrap gap-2 justify-center"}
      (for [n (range min (inc max))]
        ^{:key n}
-       [button {:class (if (= n my-vote)
+       [button {:class (if (= n current-vote)
                          "px-4 py-2 bg-green-600 text-white rounded-lg"
                          "px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700")
                 :on-click #(submit-vote! n)}
         (str n)])]))
 
 (defn choice-input [options]
-  (let [my-vote (:my-vote @state)]
+  (let [current-vote (my-vote)]
     [:div {:class "flex flex-col gap-2"}
      (for [opt options]
        ^{:key opt}
-       [button {:class (if (= opt my-vote)
+       [button {:class (if (= opt current-vote)
                          "px-4 py-2 bg-green-600 text-white rounded-lg"
                          "px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700")
                 :on-click #(submit-vote! opt)}
@@ -72,7 +75,7 @@
                               (submit-vote! value)
                               (set! (.-value input) ""))))}
       "Submit"]
-     (when-let [v (:my-vote @state)]
+     (when-let [v (my-vote)]
        [:div {:class "text-sm text-gray-600"} "Your answer: " v])]))
 
 (defn question-ui [question]
@@ -124,9 +127,4 @@
       (presenter/get-state
         (fn [presenter-state]
           (when presenter-state
-            (let [new-slide-id (:slide-id presenter-state)
-                  old-slide-id (:slide-id @state)]
-              ;; Reset vote when slide changes
-              (when (not= new-slide-id old-slide-id)
-                (swap! state assoc :my-vote nil))
-              (swap! state assoc :slide-id new-slide-id))))))))
+            (swap! state assoc :slide-id (:slide-id presenter-state))))))))

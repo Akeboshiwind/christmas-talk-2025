@@ -6,7 +6,7 @@
 ;; >> State
 
 (def state (atom {:slide-id nil
-                  :votes {}  ;; {client-id -> vote}
+                  :votes {}  ;; {slide-id -> {:latest-vote {client-id -> vote}, :all-votes [vote]}}
                   :audience-count 0}))
 
 (defn current-question []
@@ -19,16 +19,17 @@
 (defn process-vote [vote]
   (let [client-id (:client-id vote)
         question-id (:question-id vote)]
-    ;; Only process votes for the current question
-    (when (= question-id (:id (current-question)))
-      (swap! state assoc-in [:votes client-id] vote))))
+    (swap! state (fn [s]
+                   (-> s
+                       (assoc-in [:votes question-id :latest-vote client-id] vote)
+                       (update-in [:votes question-id :all-votes] (fnil conj []) vote))))))
 
 
 
 ;; >> Aggregation
 
 (defn get-votes []
-  (vals (:votes @state)))
+  (vals (get-in @state [:votes (:slide-id @state) :latest-vote])))
 
 (defn scale-stats []
   (let [votes (get-votes)
@@ -155,12 +156,7 @@
       (presenter/get-state
         (fn [presenter-state]
           (when presenter-state
-            (let [new-slide-id (:slide-id presenter-state)
-                  old-slide-id (:slide-id @state)]
-              ;; Clear votes when slide changes
-              (when (not= new-slide-id old-slide-id)
-                (swap! state assoc :votes {}))
-              (swap! state assoc :slide-id new-slide-id)))))))
+            (swap! state assoc :slide-id (:slide-id presenter-state)))))))
 
   ;; Subscribe to votes
   (ably/subscribe! "votes" process-vote))
