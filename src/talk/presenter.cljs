@@ -9,9 +9,9 @@
    "about"
    ["wotc" "q1" "q1-results" "wotc-answer"]
    ["rules" "q2" "q2-results"]
-   ["independence" "q3" "q3-results"]
-   ["diversity" "q4" "q4-results"]
-   ["ground-truth" "q5" "q5-results"]])
+   ["independence" "q3" "q3-results" "q3-trend"]
+   ["diversity" "q4" "q4-results" "q4-trend"]
+   ["ground-truth" "q5" "q5-results" "q5-trend"]])
 
 (def slide-ids (->> slides
                     (map #(if (string? %) [%] %))

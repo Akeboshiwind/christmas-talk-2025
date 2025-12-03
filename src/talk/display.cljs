@@ -1,7 +1,8 @@
 (ns talk.display
   (:require ["./ably.js" :as ably]
             ["./presenter.js" :as presenter]
-            ["./ui.js" :as ui]))
+            ["./ui.js" :as ui]
+            [clojure.string :as str]))
 
 (def persimmon-img "/persimmon.jpeg")
 
@@ -61,6 +62,26 @@
 
 (defn response-count [question-id]
   (count (get-votes-for question-id)))
+
+(defn running-averages [question-id]
+  "Returns a vector of {:timestamp :average :count} for each vote received,
+   where average is computed from the latest vote per client at that point in time"
+  (let [all-votes (get-in @state [:votes question-id :all-votes] [])
+        sorted-votes (sort-by :timestamp all-votes)]
+    (loop [votes sorted-votes
+           client-votes {}  ;; {client-id -> value}
+           results []]
+      (if (empty? votes)
+        results
+        (let [{:keys [client-id value timestamp]} (first votes)
+              new-client-votes (assoc client-votes client-id value)
+              values (vals new-client-votes)
+              new-avg (/ (reduce + values) (count values))]
+          (recur (rest votes)
+                 new-client-votes
+                 (conj results {:timestamp timestamp
+                                :average new-avg
+                                :count (count new-client-votes)})))))))
 
 
 
@@ -284,6 +305,83 @@
 
 
 
+;; >> Trend Graph (Average over time)
+
+(defn trend-graph [question-id answer]
+  (let [data (running-averages question-id)
+        question (presenter/get-question question-id)
+        min-val (get-in question [:options :min])
+        max-val (get-in question [:options :max])
+        unit (get-in question [:options :unit])
+        ;; SVG dimensions
+        width 800
+        height 400
+        padding 60
+        graph-width (- width (* 2 padding))
+        graph-height (- height (* 2 padding))]
+    (if (seq data)
+      (let [min-time (:timestamp (first data))
+            max-time (:timestamp (last data))
+            time-range (max 1 (- max-time min-time))
+            value-range (- max-val min-val)
+            ;; Scale functions
+            x-scale (fn [t] (+ padding (* graph-width (/ (- t min-time) time-range))))
+            y-scale (fn [v] (- (+ padding graph-height) (* graph-height (/ (- v min-val) value-range))))
+            ;; Build path
+            path-points (map-indexed
+                         (fn [i {:keys [timestamp average]}]
+                           (let [x (x-scale timestamp)
+                                 y (y-scale average)]
+                             (if (zero? i)
+                               (str "M " x " " y)
+                               (str "L " x " " y))))
+                         data)
+            path-d (str/join " " path-points)
+            final-avg (:average (last data))]
+        [:div {:class "w-full flex flex-col items-center"}
+         [:svg {:width width :height height :class "bg-gray-800 rounded-lg"}
+          ;; Y-axis
+          [:line {:x1 padding :y1 padding :x2 padding :y2 (+ padding graph-height)
+                  :stroke "#4B5563" :stroke-width 2}]
+          ;; X-axis
+          [:line {:x1 padding :y1 (+ padding graph-height) :x2 (+ padding graph-width) :y2 (+ padding graph-height)
+                  :stroke "#4B5563" :stroke-width 2}]
+          ;; Y-axis labels
+          (for [v [min-val (/ (+ min-val max-val) 2) max-val]]
+            ^{:key v}
+            [:text {:x (- padding 10) :y (y-scale v) :fill "#9CA3AF" :text-anchor "end" :dominant-baseline "middle" :font-size 14}
+             v])
+          ;; Answer line (horizontal)
+          (when answer
+            [:g
+             [:line {:x1 padding :y1 (y-scale answer) :x2 (+ padding graph-width) :y2 (y-scale answer)
+                     :stroke "#34D399" :stroke-width 2 :stroke-dasharray "8,4"}]
+             [:text {:x (+ padding graph-width 10) :y (y-scale answer) :fill "#34D399" :dominant-baseline "middle" :font-size 14}
+              (str answer (when unit unit))]])
+          ;; Data line
+          [:path {:d path-d :fill "none" :stroke "#60A5FA" :stroke-width 3}]
+          ;; Data points
+          (for [{:keys [timestamp average]} data]
+            ^{:key timestamp}
+            [:circle {:cx (x-scale timestamp) :cy (y-scale average) :r 4 :fill "#60A5FA"}])
+          ;; Final average label
+          [:text {:x (+ (x-scale (:timestamp (last data))) 10)
+                  :y (y-scale final-avg)
+                  :fill "#60A5FA" :dominant-baseline "middle" :font-size 16 :font-weight "bold"}
+           (.toFixed final-avg 1)]]
+         [:div {:class "mt-4 text-xl text-gray-400"}
+          "Average over " (count data) " responses"]])
+      [:div {:class "text-2xl text-gray-500"} "No responses yet"])))
+
+(defn trend-slide [question-id answer]
+  (let [question (presenter/get-question question-id)]
+    [slide-wrapper
+     [:div {:class "text-center w-full"}
+      [:h1 {:class "text-4xl font-bold mb-8"} "Convergence Over Time"]
+      [trend-graph question-id answer]]]))
+
+
+
 ;; >> Default Slide
 
 (defn default-slide [slide-id]
@@ -309,12 +407,15 @@
     "independence" [independence-slide]
     "q3" [q3-slide]
     "q3-results" [analysis-slide "q3" 1953]
+    "q3-trend" [trend-slide "q3" 1953]
     "diversity" [diversity-slide]
     "q4" [question-slide "q4"]
     "q4-results" [analysis-slide "q4" 73]
+    "q4-trend" [trend-slide "q4" 73]
     "ground-truth" [ground-truth-slide]
     "q5" [question-slide "q5"]
     "q5-results" [analysis-slide "q5"]
+    "q5-trend" [trend-slide "q5" nil]
     [default-slide slide-id]))
 
 (defn display-ui []
