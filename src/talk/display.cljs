@@ -283,6 +283,51 @@
    [:div {:class "text-center"}
     [:h1 {:class "text-7xl font-bold"} "The end"]]])
 
+(def github-repo-url "https://github.com/Akeboshiwind/christmas-talk-2025")
+
+(defn tech-stack-slide []
+  [slide-wrapper
+   [:div {:class "text-center"}
+    [:h1 {:class "text-5xl font-bold mb-8"} "Tech Stack"]
+    [:div {:class "flex justify-center gap-16"}
+     ;; Left column - tech stack
+     [:div {:class "space-y-4 text-left"}
+      [:div {:class "flex items-center gap-4"}
+       [:img {:src (str base-path "/logos/squint.png")
+              :class "w-12 h-12"}]
+       [:span {:class "text-2xl"} "Squint"]]
+      [:div {:class "flex items-center gap-4"}
+       [:img {:src (str base-path "/logos/babashka.png")
+              :class "w-12 h-12"}]
+       [:span {:class "text-2xl"} "Babashka"]]
+      [:div {:class "flex items-center gap-4"}
+       [:img {:src (str base-path "/logos/babashka.png")
+              :class "w-12 h-12 opacity-50"}]
+       [:span {:class "text-2xl"} "Reagami"]
+       [:span {:class "text-sm text-gray-400"} "(yet another borkdude project)"]]
+      [:div {:class "flex items-center gap-4"}
+       [:img {:src (str base-path "/logos/ably.png")
+              :class "w-12 h-12"}]
+       [:span {:class "text-2xl"} "Ably"]
+       [:span {:class "text-sm text-gray-400"} "(for the realtime stuff)"]]
+      [:div {:class "flex items-center gap-4"}
+       [:img {:src (str base-path "/logos/bun.svg")
+              :class "w-12 h-12"}]
+       [:span {:class "text-2xl"} "Bun"]]
+      [:div {:class "flex items-center gap-4"}
+       [:img {:src (str base-path "/logos/tailwind.svg")
+              :class "w-12 h-12"}]
+       [:span {:class "text-2xl"} "Tailwind"]]
+      [:div {:class "flex items-center gap-4"}
+       [:img {:src (str base-path "/logos/claude.png")
+              :class "w-12 h-12"}]
+       [:span {:class "text-2xl"} "Claude Code"]
+       [:span {:class "text-sm text-gray-400"} "(a whole lot of it)"]]]
+     ;; Right column - QR code
+     [:div {:class "flex flex-col items-center justify-center"}
+      (when (:github-qr-code-data @state)
+        [:img {:src (:github-qr-code-data @state) :class "rounded-lg mb-2"}])
+      [:p {:class "text-sm text-gray-400"} "View source"]]]]])
 
 
 ;; >> Speaker Message Display (tweet-style)
@@ -361,14 +406,14 @@
                       (js/Math.ceil (/ (inc range-size) (js/Math.min 10 (inc range-size)))))
          num-bins (js/Math.ceil (/ (inc range-size) bin-size))
          bins (vec (for [i (range num-bins)]
-                  (let [bin-start (+ min-val (* i bin-size))
-                        bin-end (js/Math.min max-val (+ bin-start (dec bin-size)))]
-                    {:start bin-start
-                     :end bin-end
-                     :count (if stats
-                              (reduce + (for [v (range bin-start (inc bin-end))]
-                                          (get (:distribution stats) v 0)))
-                              0)})))
+                    (let [bin-start (+ min-val (* i bin-size))
+                          bin-end (js/Math.min max-val (+ bin-start (dec bin-size)))]
+                      {:start bin-start
+                       :end bin-end
+                       :count (if stats
+                                (reduce + (for [v (range bin-start (inc bin-end))]
+                                            (get (:distribution stats) v 0)))
+                                0)})))
          max-count (apply max 1 (map :count bins))]
      (if stats
        [:div {:class "text-center space-y-4"}
@@ -555,6 +600,7 @@
     "llms" [llms-slide]
     "but-not-really" [but-not-really-slide]
     "the-end" [the-end-slide]
+    "tech-stack" [tech-stack-slide]
     [default-slide slide-id]))
 
 (defn display-ui []
@@ -572,10 +618,13 @@
 
 (defn init! []
 
-  ;; Generate QR code
+  ;; Generate QR codes
   (-> (QRCode/toDataURL (str "https://" join-url) #js {:width 200 :margin 1})
       (.then #(swap! state assoc :qr-code-data %))
       (.catch #(println "QR code generation failed:" %)))
+  (-> (QRCode/toDataURL github-repo-url #js {:width 150 :margin 1})
+      (.then #(swap! state assoc :github-qr-code-data %))
+      (.catch #(println "GitHub QR code generation failed:" %)))
 
   ;; Re-render when ably connection status changes
   (add-watch ably/state ::connection

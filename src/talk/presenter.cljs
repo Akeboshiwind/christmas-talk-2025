@@ -13,7 +13,7 @@
    ["diversity" "q4" "q4-results" "q4-trend"]
    ["ground-truth" "q5" "q5-results" "q5-trend"]
    ["point" "search-engines" "llms" "but-not-really"]
-   "the-end"])
+   ["the-end" "tech-stack"]])
 
 (def slide-ids (->> slides
                     (map #(if (string? %) [%] %))
