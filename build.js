@@ -6,10 +6,13 @@ const { values, _positionals } = parseArgs({
     args: Bun.argv,
     options: {
         watch: { type: 'boolean' },
+        'base-path': { type: 'string', default: '' },
     },
     strict: true,
     allowPositionals: true,
 });
+
+const basePath = values['base-path'] || '';
 
 
 // >> Build
@@ -41,7 +44,13 @@ async function buildFrontend() {
         target: 'browser',
         plugins: [tailwindPlugin],
     });
-    await copyFile('./src/index.html', './target/public/index.html');
+
+    // Process index.html with base path substitution
+    let html = await Bun.file('./src/index.html').text();
+    html = html.replace(/href="\/app\.css"/g, `href="${basePath}/app.css"`);
+    html = html.replace(/src="\/app\.js"/g, `src="${basePath}/app.js"`);
+    await Bun.write('./target/public/index.html', html);
+
     await copyFile('./src/IMG_5313.smaller.jpeg', './target/public/persimmon.jpeg');
 }
 
