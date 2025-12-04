@@ -6,7 +6,7 @@
             [clojure.string :as str]))
 
 (def persimmon-img "/persimmon.jpeg")
-(def join-url "crowd.example.com")
+(def join-url "blog.bythe.rocks/talk/christmas")
 
 
 ;; >> State
