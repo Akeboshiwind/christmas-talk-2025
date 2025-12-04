@@ -11,7 +11,9 @@
    ["rules" "q2" "q2-results"]
    ["independence" "q3" "q3-results" "q3-trend"]
    ["diversity" "q4" "q4-results" "q4-trend"]
-   ["ground-truth" "q5" "q5-results" "q5-trend"]])
+   ["ground-truth" "q5" "q5-results" "q5-trend"]
+   ["point" "search-engines" "llms" "but-not-really"]
+   "the-end"])
 
 (def slide-ids (->> slides
                     (map #(if (string? %) [%] %))
@@ -49,7 +51,15 @@
             "3. That's it"]
    "independence" ["For errors to cancel out, the errors need to be unbiased"]
    "diversity" ["Diversity in errors helps reduce overall error"]
-   "ground-truth" ["There needs to obviously be a precise answer to the question"]})
+   "ground-truth" ["There needs to obviously be a precise answer to the question"]
+   "point" ["Originally I had a point to this talk"
+            "Because this sounds very similar to"]
+   "search-engines" ["I mean..."]
+   "llms" ["That's what I thought"
+           "But thinking further"]
+   "but-not-really" ["Not independent, even with temperature"
+                     "They're fairly diverse"
+                     "They seem to give reasonable answers without ground truth"]})
 
 (defn get-question [question-id]
   (get questions question-id))

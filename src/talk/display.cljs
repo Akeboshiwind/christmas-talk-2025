@@ -231,6 +231,51 @@
    [:div {:class "text-center"}
     [:h1 {:class "text-5xl font-bold"} "A ground truth exists"]]])
 
+(defn point-slide []
+  [slide-wrapper
+   [:div {:class "text-center"}
+    [:h1 {:class "text-5xl font-bold mb-8"} "So what's the point?"]
+    [:p {:class "text-3xl text-gray-400"} "Does this sound familiar to any widely used technology currently?"]]])
+
+(defn search-engines-slide []
+  [slide-wrapper
+   [:div {:class "text-center"}
+    [:h1 {:class "text-6xl font-bold"} "Search Engines!"]]])
+
+(defn llms-slide []
+  [slide-wrapper
+   [:div {:class "text-center"}
+    [:h1 {:class "text-6xl font-bold"} "LLMs"]]])
+
+(defn but-not-really-slide []
+  [slide-wrapper
+   [:div {:class "text-center"}
+    [:h1 {:class "text-5xl font-bold mb-12"} "But not really"]
+    [:table {:class "mx-auto text-2xl border-collapse"}
+     [:thead
+      [:tr {:class "border-b border-gray-600"}
+       [:th {:class "px-8 py-4 text-left"}]
+       [:th {:class "px-8 py-4"} "Wisdom of the Crowd"]
+       [:th {:class "px-8 py-4"} "LLMs"]]]
+     [:tbody
+      [:tr {:class "border-b border-gray-700"}
+       [:td {:class "px-8 py-4 text-left text-gray-400"} "Independence"]
+       [:td {:class "px-8 py-4 text-green-400"} "✅"]
+       [:td {:class "px-8 py-4 text-red-400"} "❌"]]
+      [:tr {:class "border-b border-gray-700"}
+       [:td {:class "px-8 py-4 text-left text-gray-400"} "Diversity"]
+       [:td {:class "px-8 py-4 text-green-400"} "✅"]
+       [:td {:class "px-8 py-4 text-green-400"} "✅"]]
+      [:tr
+       [:td {:class "px-8 py-4 text-left text-gray-400"} "Requires Ground Truth"]
+       [:td {:class "px-8 py-4 text-green-400"} "✅"]
+       [:td {:class "px-8 py-4 text-red-400"} "❌"]]]]]])
+
+(defn the-end-slide []
+  [slide-wrapper
+   [:div {:class "text-center"}
+    [:h1 {:class "text-7xl font-bold"} "The end"]]])
+
 
 
 ;; >> Speaker Message Display (tweet-style)
@@ -498,6 +543,11 @@
     "q5" [question-slide "q5"]
     "q5-results" [analysis-slide "q5"]
     "q5-trend" [trend-slide "q5" nil]
+    "point" [point-slide]
+    "search-engines" [search-engines-slide]
+    "llms" [llms-slide]
+    "but-not-really" [but-not-really-slide]
+    "the-end" [the-end-slide]
     [default-slide slide-id]))
 
 (defn display-ui []
