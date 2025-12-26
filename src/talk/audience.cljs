@@ -7,12 +7,12 @@
 
 (def default-state {:slide-id nil
                     :my-votes {}      ;; {question-id -> vote-value}
-                    :selected-speaker nil
-                    :my-message ""})
+                    :my-name nil      ;; Player's display name
+                    :name-submitted? false})
 
 (defn save-state! []
   (js/localStorage.setItem "audience-state"
-    (js/JSON.stringify (select-keys @state [:my-votes]))))
+    (js/JSON.stringify (select-keys @state [:my-votes :my-name :name-submitted?]))))
 
 (defn load-state []
   (when-let [saved (js/localStorage.getItem "audience-state")]
@@ -20,26 +20,21 @@
 
 (def state (atom (merge default-state (load-state))))
 
+(def CHANNEL "audience")
+
 (defn reset-state! []
   (js/localStorage.removeItem "audience-state")
   (reset! state default-state)
+  ;; Update presence to clear name
+  (ably/update-presence! CHANNEL {:name nil})
   ;; Re-fetch presenter state
   (presenter/get-state
     (fn [presenter-state]
       (when presenter-state
-        (swap! state assoc
-               :slide-id (:slide-id presenter-state)
-               :selected-speaker (:selected-speaker presenter-state))))))
-
-(def CHANNEL "audience")
-(def SPEAKER-CHANNEL "speaker")
-(def REACTIONS-CHANNEL "reactions")
+        (swap! state assoc :slide-id (:slide-id presenter-state))))))
 
 (defn my-vote-for [question-id]
   (get (:my-votes @state) question-id))
-
-(defn i-am-speaker? []
-  (= ably/client-id (:selected-speaker @state)))
 
 
 
@@ -53,27 +48,21 @@
       (reset! timeout
         (js/setTimeout #(apply f args) delay-ms)))))
 
-
-
-;; >> Speaker Messages
-
-(defn send-speaker-message! [message]
-  (swap! state assoc :my-message message)
-  (ably/publish! SPEAKER-CHANNEL "message" {:client-id ably/client-id
-                                             :message message
-                                             :timestamp (js/Date.now)}))
+;; Fallback UUID generator for non-HTTPS contexts
+(defn generate-id []
+  (str (js/Date.now) "-" (js/Math.floor (* (js/Math.random) 1000000))))
 
 
 
-;; >> Emoji Reactions
+;; >> Name Management
 
-(def send-reaction!
-  (debounce
-    (fn [emoji]
-      (ably/publish! REACTIONS-CHANNEL "reaction" {:emoji emoji
-                                                    :id (str (random-uuid))
-                                                    :timestamp (js/Date.now)}))
-    200))
+(defn update-presence-name! []
+  (ably/update-presence! CHANNEL {:name (:my-name @state)}))
+
+(defn submit-name! [name]
+  (swap! state assoc :my-name name :name-submitted? true)
+  (save-state!)
+  (update-presence-name!))
 
 
 
@@ -137,7 +126,9 @@
       ;; Min/max labels
       [:div {:class "flex justify-between text-sm text-gray-400"}
        [:span (or min-label min)]
-       [:span (or max-label max)]]]]))
+       [:span (or max-label max)]]]
+     (when current-vote
+       [:div {:class "text-sm text-green-400 text-center"} "Submitted!"])]))
 
 (defn choice-voter [question-id question]
   (let [current-vote (my-vote-for question-id)]
@@ -150,60 +141,45 @@
                           "px-4 py-2 bg-green-600 text-white rounded-lg"
                           "px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700")
                  :on-click #(submit-vote! question-id opt)}
-         opt])]]))
-
-(defn text-voter [question-id question]
-  (let [input-id (str "text-input-" question-id)
-        current-vote (my-vote-for question-id)]
-    [:div {:class "space-y-4"}
-     [:h2 {:class "text-xl font-semibold text-center"} (:text question)]
-     [:div {:class "flex flex-col gap-2"}
-      [:input {:id input-id
-               :type "text"
-               :class "px-4 py-2 border border-gray-600 rounded-lg bg-transparent"
-               :placeholder "Type your answer..."}]
-      [button {:on-click (fn []
-                           (let [input (js/document.getElementById input-id)
-                                 value (.-value input)]
-                             (when (seq value)
-                               (submit-vote! question-id value)
-                               (set! (.-value input) ""))))}
-       "Submit"]
-      (when current-vote
-        [:div {:class "text-sm text-gray-400"} "Your answer: " current-vote])]]))
+         opt])]
+     (when current-vote
+       [:div {:class "text-sm text-green-400 text-center"} "Submitted!"])]))
 
 (defn question-voter [question-id]
   (let [question (presenter/get-question question-id)]
     (case (:kind question)
       :scale [scale-voter question-id question]
       :choice [choice-voter question-id question]
-      :text [text-voter question-id question]
       [:div "Unknown question type"])))
 
-(defn speaker-message-input []
-  (let [input-id "speaker-message-input"
-        current-message (:my-message @state)]
-    [:div {:class "p-4 bg-purple-900/50 border border-purple-500 rounded-lg space-y-3"}
-     [:div {:class "flex items-center gap-2"}
-      [:span {:class "text-purple-400 text-lg"} "✨"]
-      [:span {:class "text-purple-300 font-semibold"} "You've been selected to share!"]]
-     [:textarea {:id input-id
-                 :class "w-full px-3 py-2 bg-gray-800 border border-gray-600 rounded-lg text-white resize-none focus:border-purple-500 focus:outline-none"
-                 :rows 3
-                 :placeholder "Share your thoughts..."
-                 :default-value current-message}]
-     [button {:class "w-full px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:bg-gray-600"
+(defn name-input-ui []
+  (let [input-id "name-input"]
+    [:div {:class "text-center space-y-6"}
+     [:h2 {:class "text-2xl font-bold"} "Welcome to the Quiz!"]
+     [:p {:class "text-gray-400"} "Enter your name to join"]
+     [:input {:id input-id
+              :type "text"
+              :class "w-full px-4 py-3 bg-gray-700 border border-gray-600 rounded-lg text-white text-lg text-center"
+              :placeholder "Your name..."
+              :default-value (or (:my-name @state) "")}]
+     [button {:class "w-full px-4 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 text-lg font-semibold"
               :on-click (fn []
                           (let [input (js/document.getElementById input-id)
-                                value (.-value input)]
-                            (when (seq (.trim value))
-                              (send-speaker-message! value)
-                              (set! (.-value input) ""))))}
-      "Send Message"]
-     (when (seq current-message)
-       [:div {:class "text-xs text-gray-400"} "Your message is live on screen"])]))
+                                value (.trim (.-value input))]
+                            (when (seq value)
+                              (submit-name! value))))}
+      "Join Quiz"]]))
 
-(def reaction-emojis ["❤️" "👍" "😮" "🧠"])
+(def reaction-emojis ["❤️" "👍" "😮" "🧠" "🍆"])
+(def REACTIONS-CHANNEL "reactions")
+
+(def send-reaction!
+  (debounce
+    (fn [emoji]
+      (ably/publish! REACTIONS-CHANNEL "reaction" {:emoji emoji
+                                                    :id (generate-id)
+                                                    :timestamp (js/Date.now)}))
+    200))
 
 (defn emoji-button [emoji]
   [:button {:class "text-4xl p-3 hover:scale-125 transition-transform active:scale-90"
@@ -225,23 +201,22 @@
 ;; >> Voter Router
 
 (defn render-voter [slide-id]
-  (case slide-id
-    "q1" [question-voter "q1"]
-    "q2" [question-voter "q2"]
-    "q3" [:div {:class "space-y-4"}
-          [question-voter "q3"]
-          (when (i-am-speaker?)
-            [speaker-message-input])]
-    "q4" [question-voter "q4"]
-    "q5" [question-voter "q5"]
+  (if (presenter/question-id? slide-id)
+    [question-voter slide-id]
     [waiting-ui]))
 
 (defn audience-ui []
-  (let [slide-id (:slide-id @state)]
+  (let [slide-id (:slide-id @state)
+        has-name? (:name-submitted? @state)]
     [:div {:class "min-h-screen bg-gray-900 text-white"}
      [:div {:class "p-4 max-w-md mx-auto"}
-      [:h1 {:class "text-2xl font-bold mb-4 text-center"} "Vote"]
-      [render-voter slide-id]
+      (if has-name?
+        [:div
+         [:div {:class "flex justify-between items-center mb-4"}
+          [:h1 {:class "text-2xl font-bold"} "Quiz"]
+          [:span {:class "text-gray-400"} (:my-name @state)]]
+         [render-voter slide-id]]
+        [name-input-ui])
       [ui/connection-pill]]]))
 
 
@@ -255,18 +230,16 @@
     (fn [_ _ _ _]
       (swap! state identity)))
 
-  ;; Enter audience presence (for counting)
-  (ably/enter-presence! CHANNEL)
+  ;; Enter audience presence with name if we have one
+  (ably/enter-presence! CHANNEL {:name (:my-name @state)})
 
-  ;; Watch presenter for current slide and selected speaker
+  ;; Watch presenter for current slide
   (presenter/on-state-change!
     (fn []
       (presenter/get-state
         (fn [presenter-state]
           (when presenter-state
-            (swap! state assoc
-                   :slide-id (:slide-id presenter-state)
-                   :selected-speaker (:selected-speaker presenter-state)))))))
+            (swap! state assoc :slide-id (:slide-id presenter-state)))))))
 
   ;; Subscribe to control channel for reset
   (ably/subscribe! "control" (fn [_] (reset-state!))))

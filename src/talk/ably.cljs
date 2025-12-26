@@ -5,9 +5,13 @@
 
 ;; >> Client ID (stable per device)
 
+;; Fallback ID generator for non-HTTPS contexts (where crypto.randomUUID isn't available)
+(defn generate-id []
+  (str (js/Date.now) "-" (js/Math.floor (* (js/Math.random) 1000000))))
+
 (defn get-client-id []
   (or (js/localStorage.getItem "client-id")
-      (let [id (str (random-uuid))]
+      (let [id (generate-id)]
         (js/localStorage.setItem "client-id" id)
         id)))
 

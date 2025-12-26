@@ -4,65 +4,277 @@
 
 ;; >> Slides & Questions
 
+;; Questions data - add/remove questions here, everything else is generated
+(def questions
+  [;; Round 1 - General Knowledge (Surprising Facts)
+   {:text "Which country has MORE pyramids than Egypt?"
+    :kind :choice
+    :options ["Mexico" "Sudan" "Peru" "Iraq"]
+    :answer "Sudan"}
+   {:text "What can hippos NOT do, despite spending most of their time in water?"
+    :kind :choice
+    :options ["Hold their breath" "Open their eyes underwater" "Swim" "Float"]
+    :answer "Swim"}
+   {:text "The phrase 'saved by the bell' actually originated from which sport?"
+    :kind :choice
+    :options ["Wrestling" "Boxing" "Fencing" "Horse racing"]
+    :answer "Boxing"}
+
+   ;; Round 1 - Christmas (Weird Traditions)
+   {:text "Based on biology, Santa's reindeer must all be what?"
+    :kind :choice
+    :options ["Under 5 years old" "Female" "Albino" "From Norway"]
+    :answer "Female"}
+   {:text "In which country do people roller-skate to Christmas morning church services?"
+    :kind :choice
+    :options ["Brazil" "Philippines" "Venezuela" "Colombia"]
+    :answer "Venezuela"}
+   {:text "In what year did KFC launch its Christmas dinner tradition in Japan?"
+    :kind :scale
+    :options {:min 1965 :max 1990}
+    :answer 1974}
+
+   ;; Round 1 - New Zealand (Unique Facts)
+   {:text "Approximately how many years ago did humans first arrive in New Zealand?"
+    :kind :scale
+    :options {:min 500 :max 5000}
+    :answer 800}
+   {:text "In New Zealand's 2001 census, over 53,000 people listed what as their religion?"
+    :kind :choice
+    :options ["Pastafarian" "Jedi" "Sith" "Hobbit"]
+    :answer "Jedi"}
+   {:text "New Zealand officially appointed someone to what unusual government position in 1990?"
+    :kind :choice
+    :options ["Royal Jester" "Official Wizard" "Chief Hobbit" "Minister of Silly Walks"]
+    :answer "Official Wizard"}
+   {:text "How many islands make up New Zealand (not just the two main ones)?"
+    :kind :scale
+    :options {:min 50 :max 1000}
+    :answer 600}
+
+   ;; Round 2 - General Knowledge
+   {:text "Which is larger in area: Central Park in NYC or the entire country of Monaco?"
+    :kind :choice
+    :options ["Central Park" "Monaco" "They're the same" "Depends on the tide"]
+    :answer "Central Park"}
+   {:text "What animal produces cube-shaped poop?"
+    :kind :choice
+    :options ["Capybara" "Wombat" "Koala" "Platypus"]
+    :answer "Wombat"}
+   {:text "How old is Jonathan the tortoise, the world's oldest known living land animal?"
+    :kind :scale
+    :options {:min 120 :max 250}
+    :answer 192}
+
+   ;; Round 2 - Christmas
+   {:text "In Iceland, children who don't receive new clothes for Christmas risk being eaten by what?"
+    :kind :choice
+    :options ["The Yule Goat" "The Yule Cat" "Krampus" "The Snow Troll"]
+    :answer "The Yule Cat"}
+   {:text "At exactly 3pm on Christmas Eve, half of Sweden sits down to watch what on TV?"
+    :kind :choice
+    :options ["The Sound of Music" "Home Alone" "Donald Duck cartoons" "A Charlie Brown Christmas"]
+    :answer "Donald Duck cartoons"}
+   {:text "How many mischievous Yule Lads (troll-Santas) does Iceland have instead of one Santa?"
+    :kind :scale
+    :options {:min 5 :max 25}
+    :answer 13}
+
+   ;; Round 2 - New Zealand
+   {:text "Which Kiwi may have achieved powered flight BEFORE the Wright Brothers in 1903?"
+    :kind :choice
+    :options ["Richard Pearse" "Ernest Rutherford" "Edmund Hillary" "Bill Hamilton"]
+    :answer "Richard Pearse"}
+   {:text "New Zealand has three official languages: English, Te Reo Māori, and what else?"
+    :kind :choice
+    :options ["Samoan" "Mandarin" "NZ Sign Language" "Cook Islands Māori"]
+    :answer "NZ Sign Language"}
+   {:text "Dunedin's Baldwin Street holds what Guinness World Record?"
+    :kind :choice
+    :options ["Narrowest street" "Steepest street" "Longest street name" "Most potholes"]
+    :answer "Steepest street"}
+   {:text "How many sheep are there in New Zealand for every person?"
+    :kind :scale
+    :options {:min 1 :max 15}
+    :answer 5}
+
+   ;; Round 3 - General Knowledge
+   {:text "Tsutomu Yamaguchi survived both atomic bombs in WWII. Where was his hometown?"
+    :kind :choice
+    :options ["Hiroshima" "Nagasaki" "Tokyo" "Osaka"]
+    :answer "Nagasaki"}
+   {:text "What part of your body contains zero muscles?"
+    :kind :choice
+    :options ["Your ears" "Your nose" "Your fingers" "Your lips"]
+    :answer "Your fingers"}
+   {:text "How long can a sloth hold its breath underwater (longer than dolphins)?"
+    :kind :scale
+    :options {:min 5 :max 60}
+    :answer 40}
+
+   ;; Round 3 - Christmas
+   {:text "In Norway, families hide what household item on Christmas Eve to stop witches stealing it?"
+    :kind :choice
+    :options ["Knives" "Brooms" "Candles" "Mirrors"]
+    :answer "Brooms"}
+   {:text "In Ukraine, it's traditional to decorate Christmas trees with what creepy decoration?"
+    :kind :choice
+    :options ["Fake spider webs" "Miniature coffins" "Black cats" "Skulls"]
+    :answer "Fake spider webs"}
+   {:text "In what year was William the Conqueror's coronation - marked by an accidental massacre?"
+    :kind :scale
+    :options {:min 1000 :max 1200}
+    :answer 1066}
+
+   ;; Round 3 - New Zealand
+   {:text "New Zealand invented what common everyday item in the 1950s?"
+    :kind :choice
+    :options ["Velcro" "Disposable syringe" "Post-it notes" "Bubble wrap"]
+    :answer "Disposable syringe"}
+   {:text "Which New Zealand running coach is credited with inventing 'jogging' as exercise?"
+    :kind :choice
+    :options ["Peter Snell" "Arthur Lydiard" "John Walker" "Jack Lovelock"]
+    :answer "Arthur Lydiard"}
+   {:text "How many characters are in the longest place name in any English-speaking country (a NZ hill)?"
+    :kind :scale
+    :options {:min 40 :max 100}
+    :answer 85}
+   {:text "The Pōhutukawa tree, which blooms in December, is known as New Zealand's what?"
+    :kind :choice
+    :options ["National Tree" "Christmas Tree" "Wedding Tree" "Sacred Tree"]
+    :answer "Christmas Tree"}
+
+   ;; Round 4 - General Knowledge
+   {:text "What color is a polar bear's skin (under the white fur)?"
+    :kind :choice
+    :options ["Pink" "White" "Black" "Grey"]
+    :answer "Black"}
+   {:text "Wind is actually completely silent. What makes the sound we call 'wind'?"
+    :kind :choice
+    :options ["Air molecules colliding" "Wind hitting objects" "Temperature changes" "Pressure waves"]
+    :answer "Wind hitting objects"}
+   {:text "How much does an average cumulus cloud weigh in tonnes?"
+    :kind :scale
+    :options {:min 100 :max 2000000}
+    :answer 1000000}
+
+   ;; Round 4 - Christmas
+   {:text "What's the name of the fake gangster movie Kevin watches in Home Alone?"
+    :kind :choice
+    :options ["Scarface 2" "Angels with Filthy Souls" "Goodfellas Jr." "The Chicago Way"]
+    :answer "Angels with Filthy Souls"}
+   {:text "In which country do nativity scenes include 'caganers' - figures doing their business with pants down?"
+    :kind :choice
+    :options ["Italy" "Catalonia/Spain" "Portugal" "Mexico"]
+    :answer "Catalonia/Spain"}
+   {:text "The song '12 Days of Christmas' includes how many total gifts if you count all repetitions?"
+    :kind :scale
+    :options {:min 50 :max 400}
+    :answer 364}
+
+   ;; Round 4 - New Zealand
+   {:text "Which extinct giant bird of New Zealand could grow up to 3.6 meters tall?"
+    :kind :choice
+    :options ["Haast's Eagle" "Moa" "Giant Kiwi" "Pouakai"]
+    :answer "Moa"}
+   {:text "New Zealand has more of these per capita than Scotland does. What are they?"
+    :kind :choice
+    :options ["Whisky distilleries" "Scottish piping bands" "Tartan shops" "Haggis restaurants"]
+    :answer "Scottish piping bands"}
+   {:text "On which days is ALL advertising banned from NZ TV and radio?"
+    :kind :choice
+    :options ["ANZAC Day only" "Christmas, Good Friday, Easter Sunday" "Every Sunday" "Queen's Birthday"]
+    :answer "Christmas, Good Friday, Easter Sunday"}
+   {:text "New Zealand was the first country to give women the vote (1893). How many years before the UK?"
+    :kind :scale
+    :options {:min 10 :max 50}
+    :answer 25}
+
+   ;; Round 5 - General Knowledge
+   {:text "According to the Bible, how many wise men visited baby Jesus?"
+    :kind :choice
+    :options ["Three" "Four" "Twelve" "It doesn't say"]
+    :answer "It doesn't say"}
+   {:text "Which car company owns Lamborghini, Bentley, Bugatti, AND Porsche?"
+    :kind :choice
+    :options ["BMW Group" "Mercedes-Benz" "Volkswagen Group" "Stellantis"]
+    :answer "Volkswagen Group"}
+   {:text "How many bones does a shark have?"
+    :kind :scale
+    :options {:min 0 :max 300}
+    :answer 0}
+
+   ;; Round 5 - Christmas
+   {:text "In Sweden's town of Gävle, a giant straw goat is built each Christmas. What usually happens to it?"
+    :kind :choice
+    :options ["It's sailed down river" "Vandals burn it down" "Children ride it" "It's eaten by goats"]
+    :answer "Vandals burn it down"}
+   {:text "Which singer joined Bing Crosby for 'The Little Drummer Boy' duet in a 1977 TV special?"
+    :kind :choice
+    :options ["Elvis Presley" "Frank Sinatra" "David Bowie" "John Lennon"]
+    :answer "David Bowie"}
+   {:text "In what year did 'Jingle Bells' become the first song broadcast from space?"
+    :kind :scale
+    :options {:min 1960 :max 1975}
+    :answer 1965}
+
+   ;; Round 5 - New Zealand
+   {:text "What percentage of New Zealand's electricity comes from renewable sources?"
+    :kind :choice
+    :options ["40%" "60%" "80%" "95%"]
+    :answer "80%"}
+   {:text "Where is the world's first International Dark Sky Reserve (for stargazing)?"
+    :kind :choice
+    :options ["Chilean Andes" "Mackenzie Region, NZ" "Sahara Desert" "Iceland"]
+    :answer "Mackenzie Region, NZ"}
+   {:text "What was the first fast-food chain to open in New Zealand (1971)?"
+    :kind :choice
+    :options ["McDonald's" "Burger King" "KFC" "Pizza Hut"]
+    :answer "KFC"}
+   {:text "How many of New Zealand's native bird species are flightless?"
+    :kind :scale
+    :options {:min 5 :max 25}
+    :answer 16}])
+
+;; Generate IDs and lookup map from questions vector
+(def question-ids (mapv #(str "q" (inc %)) (range (count questions))))
+
+(def questions-by-id
+  (into {} (map-indexed (fn [i q] [(str "q" (inc i)) (assoc q :id (str "q" (inc i)))]) questions)))
+
+;; Generate slides from questions (with score breaks every 10 questions)
 (def slides
-  ["title"
-   "about"
-   ["wotc" "q1" "q1-results" "wotc-answer"]
-   ["rules" "q2" "q2-results"]
-   ["independence" "q3" "q3-results" "q3-trend"]
-   ["diversity" "q4" "q4-results" "q4-trend"]
-   ["ground-truth" "q5" "q5-results" "q5-trend"]
-   ["point" "search-engines" "llms" "but-not-really"]
-   ["the-end" "tech-stack"]])
+  (vec (concat ["title"]
+               (mapcat (fn [i qid]
+                         (let [base [[qid (str qid "-results")]]
+                               ;; Add scores slide after every 10 questions (but not at the end)
+                               needs-break? (and (pos? (inc i))
+                                                 (zero? (mod (inc i) 10))
+                                                 (< (inc i) (count question-ids)))]
+                           (if needs-break?
+                             (conj base "scores")
+                             base)))
+                       (range)
+                       question-ids)
+               ["scoreboard"])))
 
 (def slide-ids (->> slides
                     (map #(if (string? %) [%] %))
                     (apply concat)
                     vec))
 
-(def questions
-  {"q1" {:id "q1"
-         :text "Who has heard of \"Wisdom of the Crowd\" before?"
-         :kind :choice
-         :options ["Yes" "No" "Maybe"]}
-   "q2" {:id "q2"
-         :text "How heavy is this Persimmon (in grams)?"
-         :kind :scale
-         :options {:min 1 :max 500 :unit "g" :bin-size 50}}
-   "q3" {:id "q3"
-         :text "What year did the first person reach the peak of Mount Everest?"
-         :kind :scale
-         :options {:min 1800 :max 2000 :bin-size 10}}
-   "q4" {:id "q4"
-         :text "What percentage of the world population has internet access?"
-         :kind :scale
-         :options {:min 0 :max 100 :unit "%" :bin-size 10}}
-   "q5" {:id "q5"
-         :text "How ethical is it to train LLMs on public code on GitHub?"
-         :kind :scale
-         :options {:min 0 :max 10 :bin-size 1
-                   :min-label "Not ethical" :max-label "Very ethical"}}})
-
-(def notes
-  {"about" ["This is my backup idea..."
-            "So let's just have fun"]
-   "rules" ["1. No peeking!"
-            "2. Feel free to change your answers as much as you like"
-            "3. That's it"]
-   "independence" ["For errors to cancel out, the errors need to be unbiased"]
-   "diversity" ["Diversity in errors helps reduce overall error"]
-   "ground-truth" ["There needs to obviously be a precise answer to the question"]
-   "point" ["Originally I had a point to this talk"
-            "Because this sounds very similar to"]
-   "search-engines" ["I mean..."]
-   "llms" ["That's what I thought"
-           "But thinking further"]
-   "but-not-really" ["Not independent, even with temperature"
-                     "They're fairly diverse"
-                     "They seem to give reasonable answers without ground truth"]})
+(def notes {})
 
 (defn get-question [question-id]
-  (get questions question-id))
+  (get questions-by-id question-id))
+
+(defn question-id? [slide-id]
+  (contains? questions-by-id slide-id))
+
+(defn results-id? [slide-id]
+  (and (string? slide-id)
+       (.endsWith slide-id "-results")
+       (question-id? (subs slide-id 0 (- (count slide-id) 8)))))
 
 
 ;; >> State
@@ -197,17 +409,13 @@
 (defn presenter-ui []
   (let [disabled? (not (ably/connected?))
         current-slide (:slide-id @state)
-        idx (current-slide-index)
-        on-q3? (= current-slide "q3")]
-    ;; Auto-select speaker when entering q3 if none selected
-    (when (and on-q3? (not (:selected-speaker @state)) (seq (:audience-members @state)))
-      (select-random-speaker!))
+        idx (current-slide-index)]
     [:div {:class "min-h-screen bg-gray-900 text-white"}
      [:div {:class "p-4 space-y-6 max-w-md mx-auto"}
-      [:h1 {:class "text-2xl font-bold"} "Presenter Controls"]
+      [:h1 {:class "text-2xl font-bold"} "Quiz Controls"]
 
       [:div {:class "text-lg"}
-       "Audience connected: " (:audience-count @state)]
+       "Participants: " (:audience-count @state)]
 
       [:div {:class "space-y-2"}
        [:h2 {:class "text-xl font-semibold"} "Current Slide"]
@@ -216,9 +424,6 @@
         [button {:on-click next-slide! :disabled disabled?} "Next"]
         [:span {:class "px-4 py-2 font-mono text-lg"} current-slide]
         [:span {:class "text-gray-400"} "(" (inc idx) "/" (count slide-ids) ")"]]]
-
-      (when on-q3?
-        [speaker-selection-ui disabled?])
 
       (when-let [slide-notes (get notes current-slide)]
         [:div {:class "p-3 bg-yellow-900/50 border border-yellow-700 rounded-lg"}

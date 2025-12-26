@@ -13,18 +13,17 @@
       pathname)))
 
 (def persimmon-img (str base-path "/persimmon.jpeg"))
-(def join-url "blog.bythe.rocks/talk/christmas")
+(def join-url "192.168.1.184:3000")
 
 
 ;; >> State
 
 (def default-state {:slide-id nil
                     :votes {}  ;; {question-id -> {:latest-vote {client-id -> vote}, :all-votes [vote]}}
+                    :players {}  ;; {client-id -> {:name "..." :client-id "..."}}
                     :audience-count 0
-                    :speaker-messages []
                     :reactions []
-                    :qr-code-data nil
-                    :selected-speaker nil})
+                    :qr-code-data nil})
 
 (defn save-state! []
   (js/localStorage.setItem "display-state"
@@ -37,14 +36,13 @@
 (def state (atom (merge default-state (load-state))))
 
 (defn reset-state! []
-  (let [audience-count (:audience-count @state)]
-    (js/localStorage.removeItem "display-state")
-    (reset! state (assoc default-state :audience-count audience-count))
-    ;; Re-fetch presenter state
-    (presenter/get-state
-      (fn [presenter-state]
-        (when presenter-state
-          (swap! state assoc :slide-id (:slide-id presenter-state)))))))
+  (js/localStorage.removeItem "display-state")
+  (reset! state default-state)
+  ;; Re-fetch presenter state
+  (presenter/get-state
+    (fn [presenter-state]
+      (when presenter-state
+        (swap! state assoc :slide-id (:slide-id presenter-state))))))
 
 
 
@@ -61,16 +59,14 @@
 
 
 
-;; >> Speaker Message Processing
+;; >> Player Helpers
 
-(defn process-speaker-message [msg]
-  (if (= (:command msg) "clear")
-    (swap! state assoc :speaker-messages [])
-    (swap! state update :speaker-messages
-           (fn [msgs]
-             (->> (cons msg msgs)
-                  (take 5)
-                  vec)))))
+(defn get-player-name [client-id]
+  (or (get-in @state [:players client-id :name])
+      (subs client-id 0 8)))
+
+(defn get-players []
+  (vals (:players @state)))
 
 
 
@@ -116,8 +112,48 @@
 (defn text-responses [question-id]
   (map :value (get-votes-for question-id)))
 
+(defn order-responses [question-id]
+  "Returns list of order arrays submitted"
+  (map :value (get-votes-for question-id)))
+
+(defn date-responses [question-id]
+  "Returns list of date strings submitted"
+  (map :value (get-votes-for question-id)))
+
 (defn response-count [question-id]
   (count (get-votes-for question-id)))
+
+;; >> Scoring
+
+(defn check-answer [question-id player-answer]
+  "Returns true if answer is correct, false otherwise"
+  (let [question (presenter/get-question question-id)
+        correct (:answer question)]
+    (when correct
+      (case (:kind question)
+        :choice (= player-answer correct)
+        :scale (= player-answer correct)
+        false))))
+
+(defn get-player-score [client-id]
+  "Calculate total score for a player across all questions"
+  (reduce
+    (fn [score question-id]
+      (let [vote (get-in @state [:votes question-id :latest-vote client-id])
+            correct? (when vote (check-answer question-id (:value vote)))]
+        (if correct? (inc score) score)))
+    0
+    presenter/question-ids))
+
+(defn get-all-scores []
+  "Returns sorted list of {:client-id :name :score}"
+  (let [players (get-players)]
+    (->> players
+         (map (fn [player]
+                {:client-id (:client-id player)
+                 :name (or (:name player) "Unknown")
+                 :score (get-player-score (:client-id player))}))
+         (sort-by :score >))))
 
 (defn running-averages [question-id]
   "Returns a vector of {:timestamp :average :count} for each vote received,
@@ -196,12 +232,28 @@
 ;; >> Content Slides
 
 (defn title-slide []
-  [slide-wrapper
-   [:div {:class "text-center"}
-    [:h1 {:class "text-7xl font-bold mb-8"} "Wisdom of the Crowd"]
-    (when (:qr-code-data @state)
-      [:img {:src (:qr-code-data @state) :class "mx-auto mb-4 rounded-lg"}])
-    [:p {:class "text-2xl text-gray-400"} "Join at " join-url]]])
+  (let [players (get-players)]
+    [slide-wrapper
+     [:div {:class "text-center"}
+      [:h1 {:class "text-7xl font-bold mb-8"} "Quiz"]
+      [:div {:class "flex justify-center gap-16 items-start"}
+       ;; QR Code
+       [:div
+        (when (:qr-code-data @state)
+          [:img {:src (:qr-code-data @state) :class "mx-auto mb-4 rounded-lg"}])
+        [:p {:class "text-2xl text-gray-400"} "Join at " join-url]]
+       ;; Players list
+       [:div {:class "text-left"}
+        [:h2 {:class "text-2xl font-semibold mb-4 text-gray-300"} "Players"]
+        (if (seq players)
+          [:div {:class "space-y-2"}
+           (for [player players]
+             ^{:key (:client-id player)}
+             [:div {:class "flex items-center gap-3"}
+              [:span {:class "text-green-400"} "●"]
+              [:span {:class "text-xl"}
+               (or (:name player) "Joining...")]])]
+          [:p {:class "text-gray-500"} "Waiting for players..."])]]]]))
 
 (defn about-slide []
   [slide-wrapper
@@ -379,23 +431,37 @@
 
 
 
-;; >> Question Slide
+;; >> Question Slides
 
-(defn question-slide
-  ([question-id] (question-slide question-id nil nil))
-  ([question-id image] (question-slide question-id image nil))
-  ([question-id image note]
-   (let [question (presenter/get-question question-id)
-         responses (response-count question-id)
-         audience (:audience-count @state)]
-     [slide-wrapper
-      [:div {:class "text-center"}
-       [:h1 {:class "text-5xl font-bold mb-4"} (:text question)]
-       (when note
-         [:p {:class "text-2xl text-gray-400 italic mb-8"} note])
-       (when image
-         [:img {:src image :class "max-h-64 mx-auto mb-8 rounded-lg"}])
-       [:p {:class "text-2xl text-gray-400"} responses " / " audience " Responses Received"]]])))
+(defn question-slide [question-id]
+  (let [question (presenter/get-question question-id)
+        responses (response-count question-id)
+        audience (:audience-count @state)
+        kind (:kind question)
+        ;; Get question number from ID (e.g., "q3" -> 3)
+        q-num (js/parseInt (subs question-id 1))
+        total-qs (count presenter/question-ids)]
+    [slide-wrapper
+     [:div {:class "text-center"}
+      [:p {:class "text-2xl text-gray-500 mb-4"} "Question " q-num " / " total-qs]
+      [:h1 {:class "text-5xl font-bold mb-8"} (:text question)]
+      ;; Show type-specific subtitle/content
+      (case kind
+        :choice
+        [:ul {:class "text-3xl text-left max-w-lg mx-auto space-y-4 mb-8"}
+         (for [opt (:options question)]
+           ^{:key opt}
+           [:li {:class "flex items-center gap-4"}
+            [:span {:class "text-blue-400"} "•"]
+            [:span opt]])]
+
+        :scale
+        (let [{:keys [min max]} (:options question)]
+          [:p {:class "text-3xl text-gray-400 mb-8"}
+           "Select a number from " min " to " max])
+
+        nil)
+      [:p {:class "text-2xl text-gray-400"} responses " / " audience " Responses Received"]]]))
 
 
 
@@ -478,18 +544,92 @@
          [:div {:class "p-3 bg-gray-700 rounded text-lg"} resp])]
       [:div {:class "text-2xl text-gray-500"} "No responses yet"])))
 
-(defn analysis-slide
-  ([question-id] (analysis-slide question-id nil))
-  ([question-id answer]
-   (let [question (presenter/get-question question-id)]
-     [slide-wrapper
-      [:div {:class "text-center w-full"}
-       [:h1 {:class "text-4xl font-bold mb-8"} (:text question)]
-       (case (:kind question)
-         :scale [scale-chart question-id question answer]
-         :choice [choice-chart question-id question]
-         :text [text-list question-id]
-         [:div "Unknown question type"])]])))
+(defn order-list [question-id question]
+  (let [responses (order-responses question-id)
+        {:keys [top-label bottom-label]} (:options question)]
+    (if (seq responses)
+      [:div {:class "w-full max-w-2xl space-y-4"}
+       [:div {:class "text-sm text-gray-400 text-center mb-2"}
+        (str (count responses) " responses")]
+       [:div {:class "space-y-2"}
+        (for [[idx resp] (map-indexed vector responses)]
+          ^{:key idx}
+          [:div {:class "p-3 bg-gray-700 rounded flex items-center gap-4"}
+           [:span {:class "text-gray-500 text-sm"} (inc idx) "."]
+           [:div {:class "flex-1 flex gap-2"}
+            (for [[i item] (map-indexed vector resp)]
+              ^{:key i}
+              [:span {:class (str "px-2 py-1 rounded text-sm "
+                                   (if (zero? i) "bg-blue-600" "bg-gray-600"))}
+               item])]])]]
+      [:div {:class "text-2xl text-gray-500"} "No responses yet"])))
+
+(defn date-list [question-id]
+  (let [responses (date-responses question-id)
+        freq (frequencies responses)
+        sorted-dates (sort-by first (seq freq))]
+    (if (seq responses)
+      [:div {:class "w-full max-w-2xl space-y-4"}
+       [:div {:class "text-sm text-gray-400 text-center mb-2"}
+        (str (count responses) " responses")]
+       [:div {:class "space-y-2"}
+        (for [[date cnt] sorted-dates]
+          ^{:key date}
+          [:div {:class "p-3 bg-gray-700 rounded flex justify-between"}
+           [:span {:class "text-lg"} date]
+           [:span {:class "text-blue-400 font-bold"} cnt]])]]
+      [:div {:class "text-2xl text-gray-500"} "No responses yet"])))
+
+(defn format-answer [question value]
+  "Format an answer for display based on question type"
+  (str value))
+
+(defn player-answers-display [question-id]
+  "Shows each player's answer with correct/incorrect indication"
+  (let [question (presenter/get-question question-id)
+        correct-answer (:answer question)
+        players (get-players)
+        votes (get-votes-for question-id)]
+    [:div {:class "w-full max-w-3xl space-y-4"}
+     ;; Show correct answer if exists
+     (when correct-answer
+       [:div {:class "mb-6 p-4 bg-green-900/30 border border-green-700 rounded-lg"}
+        [:div {:class "text-sm text-green-400 mb-1"} "Correct Answer"]
+        [:div {:class "text-2xl font-bold text-green-300"}
+         (format-answer question correct-answer)]])
+     ;; Show each player's answer
+     [:div {:class "space-y-3"}
+      (for [player players]
+        (let [client-id (:client-id player)
+              vote (first (filter #(= (:client-id %) client-id) votes))
+              player-answer (:value vote)
+              correct? (when (and correct-answer player-answer)
+                         (check-answer question-id player-answer))]
+          ^{:key client-id}
+          [:div {:class (str "p-4 rounded-lg flex items-center justify-between "
+                             (cond
+                               (nil? player-answer) "bg-gray-800 border border-gray-700"
+                               correct? "bg-green-900/30 border border-green-700"
+                               (and correct-answer (not correct?)) "bg-red-900/30 border border-red-700"
+                               :else "bg-gray-700"))}
+           [:div {:class "flex items-center gap-3"}
+            [:span {:class "text-xl font-semibold"} (or (:name player) "Unknown")]
+            (when correct-answer
+              (cond
+                (nil? player-answer) [:span {:class "text-gray-500"} "—"]
+                correct? [:span {:class "text-green-400 text-xl"} "✓"]
+                :else [:span {:class "text-red-400 text-xl"} "✗"]))]
+           [:div {:class "text-right text-lg"}
+            (if player-answer
+              (format-answer question player-answer)
+              [:span {:class "text-gray-500 italic"} "No answer"])]]))]]))
+
+(defn analysis-slide [question-id]
+  (let [question (presenter/get-question question-id)]
+    [slide-wrapper
+     [:div {:class "text-center w-full flex flex-col items-center"}
+      [:h1 {:class "text-4xl font-bold mb-8"} (:text question)]
+      [player-answers-display question-id]]]))
 
 
 
@@ -570,6 +710,41 @@
 
 
 
+;; >> Scoreboard Slides
+
+(defn scores-display [title]
+  (let [scores (get-all-scores)
+        max-score (count (filter #(:answer (presenter/get-question %)) presenter/question-ids))]
+    [slide-wrapper
+     [:div {:class "text-center w-full"}
+      [:h1 {:class "text-6xl font-bold mb-12"} title]
+      [:div {:class "max-w-2xl mx-auto space-y-4"}
+       (for [[idx {:keys [client-id name score]}] (map-indexed vector scores)]
+         (let [rank (inc idx)
+               medal (case rank 1 "🥇" 2 "🥈" 3 "🥉" nil)]
+           ^{:key client-id}
+           [:div {:class (str "p-6 rounded-xl flex items-center justify-between "
+                              (case rank
+                                1 "bg-yellow-900/40 border-2 border-yellow-500"
+                                2 "bg-gray-700/50 border-2 border-gray-400"
+                                3 "bg-orange-900/40 border-2 border-orange-700"
+                                "bg-gray-800"))}
+            [:div {:class "flex items-center gap-4"}
+             (when medal
+               [:span {:class "text-4xl"} medal])
+             [:span {:class (str "text-2xl font-bold " (when (= rank 1) "text-yellow-300"))}
+              name]]
+            [:div {:class "text-3xl font-bold"}
+             score [:span {:class "text-xl text-gray-400"} " / " max-score]]]))]]]))
+
+(defn scoreboard-slide []
+  [scores-display "Final Scores"])
+
+(defn intermediate-scores-slide []
+  [scores-display "Current Scores"])
+
+
+
 ;; >> Default Slide
 
 (defn default-slide [slide-id]
@@ -582,35 +757,13 @@
 ;; >> Slide Router
 
 (defn render-slide [slide-id]
-  (case slide-id
-    "title" [title-slide]
-    "about" [about-slide]
-    "wotc" [wotc-slide]
-    "q1" [question-slide "q1"]
-    "q1-results" [analysis-slide "q1"]
-    "wotc-answer" [wotc-answer-slide]
-    "rules" [rules-slide]
-    "q2" [question-slide "q2" persimmon-img]
-    "q2-results" [analysis-slide "q2" 221]
-    "independence" [independence-slide]
-    "q3" [q3-slide]
-    "q3-results" [analysis-slide "q3" 1953]
-    "q3-trend" [trend-slide "q3" 1953]
-    "diversity" [diversity-slide]
-    "q4" [question-slide "q4"]
-    "q4-results" [analysis-slide "q4" 73]
-    "q4-trend" [trend-slide "q4" 73]
-    "ground-truth" [ground-truth-slide]
-    "q5" [question-slide "q5"]
-    "q5-results" [analysis-slide "q5"]
-    "q5-trend" [trend-slide "q5" nil]
-    "point" [point-slide]
-    "search-engines" [search-engines-slide]
-    "llms" [llms-slide]
-    "but-not-really" [but-not-really-slide]
-    "the-end" [the-end-slide]
-    "tech-stack" [tech-stack-slide]
-    [default-slide slide-id]))
+  (cond
+    (= slide-id "title") [title-slide]
+    (= slide-id "scoreboard") [scoreboard-slide]
+    (= slide-id "scores") [intermediate-scores-slide]
+    (presenter/question-id? slide-id) [question-slide slide-id]
+    (presenter/results-id? slide-id) [analysis-slide (subs slide-id 0 (- (count slide-id) 8))]
+    :else [default-slide slide-id]))
 
 (defn display-ui []
   (let [slide-id (:slide-id @state)]
@@ -627,25 +780,32 @@
 
 (defn init! []
 
-  ;; Generate QR codes
-  (-> (QRCode/toDataURL (str "https://" join-url) #js {:width 200 :margin 1})
+  ;; Generate QR code
+  (-> (QRCode/toDataURL (str "http://" join-url) #js {:width 200 :margin 1})
       (.then #(swap! state assoc :qr-code-data %))
       (.catch #(println "QR code generation failed:" %)))
-  (-> (QRCode/toDataURL github-repo-url #js {:width 150 :margin 1})
-      (.then #(swap! state assoc :github-qr-code-data %))
-      (.catch #(println "GitHub QR code generation failed:" %)))
 
   ;; Re-render when ably connection status changes
   (add-watch ably/state ::connection
     (fn [_ _ _ _]
       (swap! state identity)))
 
-  ;; Watch audience count
+  ;; Watch audience/players - track both count and player info
   (ably/on-presence-change! "audience"
     (fn []
       (ably/get-presence-members "audience"
         (fn [members]
-          (swap! state assoc :audience-count (count members))))))
+          (let [players (reduce
+                          (fn [acc member]
+                            (let [client-id (.-clientId member)
+                                  data (.-data member)]
+                              (assoc acc client-id {:client-id client-id
+                                                    :name (:name data)})))
+                          {}
+                          members)]
+            (swap! state assoc
+                   :audience-count (count members)
+                   :players players))))))
 
   ;; Watch presenter state
   (presenter/on-state-change!
@@ -653,15 +813,10 @@
       (presenter/get-state
         (fn [presenter-state]
           (when presenter-state
-            (swap! state assoc
-                   :slide-id (:slide-id presenter-state)
-                   :selected-speaker (:selected-speaker presenter-state)))))))
+            (swap! state assoc :slide-id (:slide-id presenter-state)))))))
 
   ;; Subscribe to votes
   (ably/subscribe! "votes" process-vote)
-
-  ;; Subscribe to speaker messages
-  (ably/subscribe! "speaker" process-speaker-message)
 
   ;; Subscribe to reactions
   (ably/subscribe! "reactions" process-reaction)
